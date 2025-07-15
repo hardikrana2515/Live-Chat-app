@@ -66,3 +66,44 @@
 │       ├── assets/
 │       └── App.jsx
 └── README.md
+
+
+📌 Backend
+bash
+Copy
+Edit
+cd backend
+npm install
+# Create a .env file
+npm run dev
+
+.env should include:/
+env
+Copy
+Edit
+PORT=5000
+DATABASE_URI=your_mongo_uri
+JWT_SECRET=your_secret
+JWT_REFRESH_SECRET=your_refresh_secret
+
+#How to run Frontend
+⚛️ Frontend
+bash
+Copy
+Edit
+cd frontend
+npm install
+npm run dev
+
+🔒 Auth Flow
+Login returns both Access Token (short-lived) & Refresh Token (long-lived)
+
+Tokens are stored in httpOnly cookies (secure & not exposed to JS)
+
+Refresh logic auto-generates new access tokens without re-login
+
+
+🙋‍♂️ Author
+Made with ❤️ by Hardik Rana
+
+
