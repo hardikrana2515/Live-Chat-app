@@ -17,7 +17,7 @@ const messageSchma = mongoose.Schema(
     },
     status: {
       type: String,
-      enum: [ "delivered", "read"],
+      enum: ["delivered", "read"],
       default: "delivered",
     },
     isDeleted: {
@@ -48,6 +48,27 @@ const messageSchma = mongoose.Schema(
         ref: "User",
       },
     ],
+    reactions: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        emoji: {
+          type: String,
+          required: true,
+        },
+      },
+    ],
+    poll: {
+      question: { type: String },
+      options: [
+        {
+          text: { type: String, required: true },
+          votes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+        },
+      ],
+    },
     chatId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,

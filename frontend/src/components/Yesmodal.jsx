@@ -6,7 +6,7 @@ import { GiEvilEyes } from "react-icons/gi";
 
 
 const Yesmodal = () => {
-    const { user, selectedchat, setSelectedchat, LeaveGroup, DeleteGroup, setYesmodal, Allchat } = useContext(chatContext)
+    const { user, selectedchat, setSelectedchat, LeaveGroup, DeleteGroup, setYesmodal, Allchat, handleBlock, modalType, setModalType } = useContext(chatContext)
 
     const handleLeave = async () => {
         try {
@@ -35,7 +35,33 @@ const Yesmodal = () => {
         }
     }
 
+    const handleBlockAction = async () => {
+        // Find other user
+        const otherUser = selectedchat.members.find(m => m._id !== user._id);
+        if (otherUser) {
+            await handleBlock(otherUser._id);
+        }
+    }
+
+
     const isCreator = selectedchat?.creator?._id?.toString() === user?._id?.toString();
+
+    // Determine config based on modalType or fallback to old logic (group)
+    let title = "Are you sure?";
+    let message = "";
+    let action = async () => { };
+
+    if (modalType === 'block') {
+        title = "Block User?";
+        message = "You won't receive messages from them.";
+        action = handleBlockAction;
+    } else {
+        // Fallback or Group logic
+        message = isCreator
+            ? "Hey, are you sure you want to delete this group?"
+            : "Hey, are you sure you want to leave this group?";
+        action = isCreator ? handleDelete : handleLeave;
+    }
 
     if (!selectedchat || !user) return null;
 
@@ -46,7 +72,10 @@ const Yesmodal = () => {
                 {/* Close Button */}
                 <button
                     className="absolute top-3 right-3 text-gray-500 hover:text-red-500 text-xl transition-transform hover:scale-125"
-                    onClick={() => setYesmodal(false)}
+                    onClick={() => {
+                        setYesmodal(false);
+                        setModalType(null);
+                    }}
                 >
                     <IoCloseSharp />
                 </button>
@@ -58,26 +87,21 @@ const Yesmodal = () => {
 
                 {/* Title */}
                 <h1 className="text-2xl font-bold text-center text-fuchsia-700 dark:text-fuchsia-400 mb-2">
-                    Are you sure?
+                    {title}
                 </h1>
 
                 {/* Message */}
                 <p className="text-center text-gray-600 dark:text-gray-300 mb-6 px-2">
-                    {isCreator
-                        ? "Hey, are you sure you want to delete this group?"
-                        : "Hey, are you sure you want to leave this group?"}
+                    {message}
                 </p>
 
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row justify-center gap-4">
                     <button
                         onClick={async () => {
-                            if (isCreator) {
-                                await handleDelete();
-                            } else {
-                                await handleLeave();
-                            }
+                            await action();
                             setYesmodal(false);
+                            setModalType(null);
                         }}
                         className="bg-red-600 hover:bg-red-700 text-white font-medium px-6 py-2 rounded-full shadow-md transition-all duration-200 w-full sm:w-auto text-center"
                     >
@@ -85,7 +109,10 @@ const Yesmodal = () => {
                     </button>
 
                     <button
-                        onClick={() => setYesmodal(false)}
+                        onClick={() => {
+                            setYesmodal(false);
+                            setModalType(null);
+                        }}
                         className="bg-gray-300 hover:bg-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 text-black dark:text-white font-medium px-6 py-2 rounded-full shadow-md transition-all duration-200 w-full sm:w-auto text-center"
                     >
                         No

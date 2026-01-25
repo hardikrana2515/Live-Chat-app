@@ -106,6 +106,12 @@ const LoginForm = () => {
                     </span>
                 </div>
 
+                <div className="text-right">
+                    <Link to="/password/forgot" className="text-xs text-fuchsia-400 hover:text-fuchsia-300 hover:underline">
+                        Forgot Password?
+                    </Link>
+                </div>
+
                 {/* Submit Button */}
                 <button
                     type="submit"

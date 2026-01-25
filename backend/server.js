@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import connectDB from "./database/db.js";
 import path from 'path';
-import {Server}   from 'socket.io'
+import { Server } from 'socket.io'
 import http from 'http'
 
 
@@ -48,21 +48,47 @@ app.use("/api/ChatApp/user", userRouter);
 app.use("/api/ChatApp/message", messageRoutes);
 app.use("/api/ChatApp/Chat", ChatRoutes);
 
+import { errorHandler } from "./middleware/error.middleware.js";
+app.use(errorHandler);
+
 const port = process.env.PORT || 5000;
 
 connectDB();
 
+const onlineUsers = new Map();
+
+import User from "./models/user.model.js";
+
+// ... (existing imports)
+
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  socket.on("setup", (userData) => {
+  socket.on("setup", async (userData) => {
     socket.join(userData._id);
+    onlineUsers.set(userData._id, socket.id);
+    io.emit("getOnlineUsers", Array.from(onlineUsers.keys()));
+
+    // Update isOnline status
+    await User.findByIdAndUpdate(userData._id, { isOnline: true });
+
     console.log(`${userData.name} joined personal room`);
   });
 
   socket.on("join chat", (roomId) => {
     socket.join(roomId);
     console.log(`User joined chat room: ${roomId}`);
+  });
+
+  socket.on("typing", (room) => socket.in(room).emit("typing", room));
+  socket.on("stop typing", (room) => socket.in(room).emit("stop typing", room));
+
+  socket.on("new reaction", (updatedMsg) => {
+    // Broadcast to specific chat room
+    const chat = updatedMsg.chatId || updatedMsg.chat;
+    if (chat) {
+      socket.in(chat._id ? chat._id : chat).emit("reaction updated", updatedMsg);
+    }
   });
 
   socket.on("new message", (msg) => {
@@ -76,8 +102,40 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("disconnect", () => {
+  // Call Signaling Events
+  socket.on("callUser", (data) => {
+    // data: { userToCall, signalData, from, name, callType }
+    socket.to(data.userToCall).emit("callUser", {
+      signal: data.signalData,
+      from: data.from,
+      name: data.name,
+      callType: data.callType
+    });
+  });
+
+  socket.on("answerCall", (data) => {
+    // data: { signal, to }
+    socket.to(data.to).emit("callAccepted", data.signal);
+  });
+
+  socket.on("endCall", ({ to }) => {
+    socket.to(to).emit("callEnded");
+  });
+
+  socket.on("disconnect", async () => {
     console.log(" User disconnected", socket.id);
+    // Remove user from onlineUsers
+    for (const [userId, socketId] of onlineUsers.entries()) {
+      if (socketId === socket.id) {
+        onlineUsers.delete(userId);
+        io.emit("getOnlineUsers", Array.from(onlineUsers.keys()));
+
+        // Update lastSeen and isOnline
+        await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen: new Date() });
+
+        break;
+      }
+    }
   });
 });
 

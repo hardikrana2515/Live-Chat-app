@@ -2,6 +2,8 @@ import userContext from "./userContext";
 import API from "../Api.js"
 import { useState, useEffect } from 'react'
 import { toast } from 'react-toastify'
+
+
 const UserState = ({ children }) => {
 
     const [login, setLogin] = useState(false);
@@ -14,6 +16,9 @@ const UserState = ({ children }) => {
 
     const signup = async (name, gender, userName, phonenumber, email, password) => {
 
+        if (!name || !gender || !userName || !phonenumber || !email || !password) {
+            throw new Error("Please fill in all fields.");
+        }
         try {
             const res = await API.post("user/register", { name, gender, userName, phonenumber, email, password }, {
                 headers: {
@@ -97,7 +102,7 @@ const UserState = ({ children }) => {
         }
     }
 
-   
+
 
     const logout = async () => {
         try {
@@ -124,25 +129,26 @@ const UserState = ({ children }) => {
                 withCredentials: true
             })
             console.log(res.data)
-                return res.data;
+            return res.data;
 
         } catch (e) {
-           
-             const errorMessage = e?.response?.data?.message || "Cannot Upload Immage";
+
+            const errorMessage = e?.response?.data?.message || "Cannot Upload Immage";
             throw new Error(errorMessage);
         }
     }
 
-    const updatePassword = async(oldpassword,newpassword)=>{
-           try{ const res = await API.put("user/changePassword",{oldpassword,newpassword},{
-                 headers: {
+    const updatePassword = async (oldpassword, newpassword) => {
+        try {
+            const res = await API.put("user/changePassword", { oldpassword, newpassword }, {
+                headers: {
                     "Content-Type": "application/json"
                 },
                 withCredentials: true
             })
 
             // console.log(res.data)
-        }catch(e){
+        } catch (e) {
             const errorMessage = e?.response?.data?.message || "Cannot Update Password";
             throw new Error(errorMessage);
         }
@@ -151,12 +157,65 @@ const UserState = ({ children }) => {
 
 
 
+    const sendRequest = async (userId) => {
+        try {
+            const token = localStorage.getItem("token");
+            const res = await API.post("user/request/send", { userId }, {
+                headers: { Authorization: user.token || token },
+                withCredentials: true
+            });
+            toast.success(res.data.message);
+            return true;
+        } catch (e) {
+            toast.error(e?.response?.data?.message || "Failed to send request");
+            return false;
+        }
+    }
+
+    const acceptRequest = async (requestId, status) => {
+        try {
+            const token = localStorage.getItem("token");
+            const res = await API.post("user/request/accept", { requestId, status }, {
+                headers: { Authorization: user.token || token },
+                withCredentials: true
+            });
+            toast.success(res.data.message);
+            return true;
+        } catch (e) {
+            toast.error(e?.response?.data?.message || "Failed to accept request");
+            return false;
+        }
+    }
+
+    // We need to fetch requests frequently or on load
+    const [friendRequests, setFriendRequests] = useState([]);
+    const getFriendRequests = async () => {
+        try {
+            // Ensure user.token exists before call
+            const token = localStorage.getItem("token"); // Fallback check
+            if (!user.token && !token) return;
+
+            const res = await API.get("user/request/get", {
+                headers: { Authorization: user.token || token },
+                withCredentials: true
+            });
+            setFriendRequests(res.data.data);
+        } catch (e) {
+            console.error("Failed to fetch requests", e);
+        }
+    }
+
+    // Refresh user profile to get latest friends list
+    const refreshUser = async () => {
+        await GetUser();
+    }
+
     return (
         <userContext.Provider value={{
             login, setLogin, signup, LoginFunc, setError, error,
-            Alluser, setLoading, searchUser, setSearchUser, GetUser,
-            user, logout, setCard, card,UploadImg,updatePassword,
-            setpass,pass
+            Alluser, setLoading, searchUser, setSearchUser, GetUser, refreshUser,
+            user, logout, setCard, card, UploadImg, updatePassword,
+            setpass, pass, sendRequest, acceptRequest, getFriendRequests, friendRequests
         }}>
             {children}
         </userContext.Provider>

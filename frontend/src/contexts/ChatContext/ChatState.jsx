@@ -17,17 +17,23 @@ const ChatState = ({ children }) => {
   const [settingmodal, setSettingmodal] = useState(false)
   const [addmodal, setAddmodal] = useState(false)
   const [yesmodal, setYesmodal] = useState(false)
+  const [isAuthReady, setIsAuthReady] = useState(false) // New state for auth check
 
   const navigate = useNavigate()
 
   useEffect(() => {
     const userinfo = JSON.parse(localStorage.getItem("userInfo"))
-    setUser(userinfo)
-    if (!userinfo) {
-      navigate("/login")
+    const token = localStorage.getItem("token")
+
+    if (userinfo && token) {
+      setUser({ ...userinfo, token })
+    } else {
+      // If we are strictly protected, we might redirect here, but Api.js handles 401s too.
+      // For now, let's just ensure we mark auth as checked.
+      // navigate("/login") 
     }
-  }
-    , [])
+    setIsAuthReady(true) // Auth check complete
+  }, [navigate])
 
   const MakeChat = async (UserId) => {
 
@@ -55,10 +61,21 @@ const ChatState = ({ children }) => {
 
   const Allchat = async () => {
     try {
+      let token = user.token
+      if (!token) {
+        token = localStorage.getItem("token")
+      }
+      if (!token) {
+        console.error("ChatState: No token found in user state or localStorage");
+        return;
+      }
+
+      console.log("ChatState: Sending Allchat request with token:", token);
+
       const res = await API.get("Chat/allChat", {
         headers: {
           "Content-Type": "application/json",
-          Authorization: user.token
+          Authorization: token
         },
         withCredentials: true
       })
@@ -190,7 +207,7 @@ const ChatState = ({ children }) => {
       return res.data.data
 
     } catch (e) {
-          const errorMessage = e?.response?.data?.message || e.message 
+      const errorMessage = e?.response?.data?.message || e.message
       toast.error(errorMessage)
       throw new Error(errorMessage)
     }
@@ -212,15 +229,15 @@ const ChatState = ({ children }) => {
       return res.data.data
 
     } catch (e) {
-          const errorMessage = e?.response?.data?.message || e.message 
+      const errorMessage = e?.response?.data?.message || e.message
       toast.error(errorMessage)
       throw new Error(errorMessage)
     }
 
   }
 
-  const AddinGroup = async (UserIdlist,chatId)=>{
-      try {
+  const AddinGroup = async (UserIdlist, chatId) => {
+    try {
       const res = await API.put("chat/addtoGroup", { UserIdlist, chatId }, {
         headers: {
           "Content-Type": "application/json",
@@ -233,57 +250,57 @@ const ChatState = ({ children }) => {
       return res.data.data
 
     } catch (e) {
-          const errorMessage = e?.response?.data?.message || e.message 
+      const errorMessage = e?.response?.data?.message || e.message
       toast.error(errorMessage)
       throw new Error(errorMessage)
     }
- }
+  }
 
- const LeaveGroup = async(chatId)=>{
-  try {
-        const res = await API.put("chat/leaveGroup", { chatId }, {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: user.token
-          },
-          withCredentials: true
-        })
-        // console.log(res.data.data)
-        toast.success("User Leave  Group!!")
-        return res.data.data
+  const LeaveGroup = async (chatId) => {
+    try {
+      const res = await API.put("chat/leaveGroup", { chatId }, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: user.token
+        },
+        withCredentials: true
+      })
+      // console.log(res.data.data)
+      toast.success("User Leave  Group!!")
+      return res.data.data
 
-      } catch (e) {
-            const errorMessage = e?.response?.data?.message || e.message 
-        toast.error(errorMessage)
-        throw new Error(errorMessage)
-      }
-
-
- }
-
- const DeleteGroup = async(chatId)=>{
-  try {
-        const res = await API.put("chat/deleteGroup", { chatId }, {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: user.token
-          },
-          withCredentials: true
-        })
-        // console.log(res.data.data)
-        toast.success("Delete Group Successfully!!")
-        return res.data.data
-
-      } catch (e) {
-            const errorMessage = e?.response?.data?.message || e.message 
-        toast.error(errorMessage)
-        throw new Error(errorMessage)
-      }
+    } catch (e) {
+      const errorMessage = e?.response?.data?.message || e.message
+      toast.error(errorMessage)
+      throw new Error(errorMessage)
+    }
 
 
- }
+  }
 
- const RemoveAdmin = async (UserId, chatId) => {
+  const DeleteGroup = async (chatId) => {
+    try {
+      const res = await API.put("chat/deleteGroup", { chatId }, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: user.token
+        },
+        withCredentials: true
+      })
+      // console.log(res.data.data)
+      toast.success("Delete Group Successfully!!")
+      return res.data.data
+
+    } catch (e) {
+      const errorMessage = e?.response?.data?.message || e.message
+      toast.error(errorMessage)
+      throw new Error(errorMessage)
+    }
+
+
+  }
+
+  const RemoveAdmin = async (UserId, chatId) => {
 
     try {
       const res = await API.put("chat/removeAdmin", { UserId, chatId }, {
@@ -298,21 +315,56 @@ const ChatState = ({ children }) => {
       return res.data.data
 
     } catch (e) {
-          const errorMessage = e?.response?.data?.message || e.message 
+      const errorMessage = e?.response?.data?.message || e.message
       toast.error(errorMessage)
       throw new Error(errorMessage)
     }
   }
 
+  const [modalType, setModalType] = useState(null); // 'block', 'delete', 'leave'
+
+  const handleBlock = async (userId) => {
+    try {
+      const res = await API.put("user/block", { userId }, {
+        headers: { Authorization: user.token },
+        withCredentials: true
+      });
+      const updatedBlocked = res.data.data;
+      const updatedUser = { ...user, blockedUsers: updatedBlocked };
+      setUser(updatedUser);
+      localStorage.setItem("userInfo", JSON.stringify(updatedUser));
+      toast.success("User blocked");
+    } catch (e) {
+      toast.error(e?.response?.data?.message || "Failed to block user");
+    }
+  };
+
+  const handleUnblock = async (userId) => {
+    try {
+      const res = await API.put("user/unblock", { userId }, {
+        headers: { Authorization: user.token },
+        withCredentials: true
+      });
+      const updatedBlocked = res.data.data;
+      const updatedUser = { ...user, blockedUsers: updatedBlocked };
+      setUser(updatedUser);
+      localStorage.setItem("userInfo", JSON.stringify(updatedUser));
+      toast.success("User unblocked");
+    } catch (e) {
+      toast.error(e?.response?.data?.message || "Failed to unblock user");
+    }
+  };
+
   return (
     <chatContext.Provider value={{
-      user, MakeChat, setChat, chat, Allchat,
+      user, setUser, MakeChat, setChat, chat, Allchat,
       selectedchat, setSelectedchat, CreateGroup,
       groupchat, setGroupchat, group, setGroup, GroupUsersearch,
       setGLoading, setGSearchUser, GsearchUser, chatmodal, setChatmodal,
       settingmodal, setSettingmodal, UpdateIcon, Renamegroup, Addadmin,
-      RemoveFromGroup ,AddinGroup ,addmodal, setAddmodal ,LeaveGroup ,DeleteGroup ,
-      yesmodal, setYesmodal ,RemoveAdmin
+      RemoveFromGroup, AddinGroup, addmodal, setAddmodal, LeaveGroup, DeleteGroup,
+      yesmodal, setYesmodal, RemoveAdmin, handleBlock, handleUnblock, modalType, setModalType,
+      isAuthReady
     }}>
       {children}
     </chatContext.Provider>
