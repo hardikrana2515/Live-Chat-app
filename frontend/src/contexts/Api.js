@@ -6,15 +6,9 @@ const API = axios.create({
 });
 
 API.interceptors.request.use((req) => {
-  if (localStorage.getItem("token")) {
-    req.headers.Authorization = localStorage.getItem("token");
-  }
-  return req;
-});
-
-API.interceptors.request.use((req) => {
-  if (localStorage.getItem("token")) {
-    req.headers.Authorization = localStorage.getItem("token");
+  const token = localStorage.getItem("token");
+  if (token && token !== "undefined" && token !== "null") {
+    req.headers.Authorization = token;
   }
   return req;
 });
@@ -22,7 +16,13 @@ API.interceptors.request.use((req) => {
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+    // Only redirect on 401 Unauthorized if not already on login or forgot password
+    if (
+      error.response &&
+      error.response.status === 401 &&
+      !window.location.pathname.startsWith("/login") &&
+      !window.location.pathname.startsWith("/password")
+    ) {
       localStorage.removeItem("token");
       localStorage.removeItem("userInfo");
       window.location.href = "/login";

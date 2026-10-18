@@ -1,4 +1,5 @@
 import User from "../models/user.model.js";
+import ChatRoom from "../models/Chatroom.model.js";
 import { AsyncHandler } from "../utils/asynchandler.js";
 import { ApiError } from "../utils/Apierror.js";
 import { ApiResponse } from "../utils/Apiresponse.js";
@@ -181,6 +182,7 @@ const Alluser = AsyncHandler(async (req, res) => {
       $or: [
         { name: { $regex: req.query.search, $options: "i" } },
         { phonenumber: { $regex: req.query.search, $options: "i" } },
+        { userName: { $regex: req.query.search, $options: "i" } },
       ],
     }
     : {};
@@ -189,14 +191,47 @@ const Alluser = AsyncHandler(async (req, res) => {
     .find({ _id: { $ne: req.user._id } })
     .select("-password");
 
-  const usersWithStatus = users.map(u => {
+  // Query existing 1-on-1 chats for the logged in user
+  const existingChats = await ChatRoom.find({
+    isGroup: false,
+    members: req.user._id,
+  }).select("members");
+
+  const connectedUserIds = new Set();
+  existingChats.forEach((c) => {
+    c.members.forEach((m) => {
+      if (m && m.toString() !== req.user._id.toString()) {
+        connectedUserIds.add(m.toString());
+      }
+    });
+  });
+
+  if (req.user.friends && Array.isArray(req.user.friends)) {
+    req.user.friends.forEach((f) => {
+      if (f) connectedUserIds.add((f._id || f).toString());
+    });
+  }
+
+  const myIdStr = req.user._id.toString();
+
+  const usersWithStatus = users.map((u) => {
+    const uIdStr = u._id.toString();
+    const isAlreadyFriend =
+      connectedUserIds.has(uIdStr) ||
+      (u.friends && u.friends.some((f) => (f._id || f).toString() === myIdStr));
+
     let status = "none";
-    if (u.friends.includes(req.user._id)) {
+    if (isAlreadyFriend) {
       status = "friend";
-    } else if (u.friendRequests.some(r => r.sender.toString() === req.user._id.toString())) {
+    } else if (
+      u.friendRequests &&
+      u.friendRequests.some((r) => r.sender && r.sender.toString() === myIdStr)
+    ) {
       status = "pending";
-    } else if (req.user.friendRequests && req.user.friendRequests.some(r => r.sender.toString() === u._id.toString())) {
-      // Optimization: Check my own requests if I received one from them
+    } else if (
+      req.user.friendRequests &&
+      req.user.friendRequests.some((r) => r.sender && r.sender.toString() === uIdStr)
+    ) {
       status = "received";
     }
     return { ...u.toObject(), connectionStatus: status };
@@ -327,7 +362,11 @@ const resetPassword = AsyncHandler(async (req, res, next) => {
 const sendRequest = AsyncHandler(async (req, res) => {
   const { userId } = req.body; // Target user ID
 
-  if (req.user._id.toString() === userId) {
+  if (!userId) {
+    throw new ApiError(400, "User ID is required");
+  }
+
+  if (req.user._id.toString() === userId.toString()) {
     throw new ApiError(400, "You cannot send a request to yourself");
   }
 
@@ -336,21 +375,29 @@ const sendRequest = AsyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
 
+  const myIdStr = req.user._id.toString();
+
   // Check if already friends
-  if (targetUser.friends.includes(req.user._id)) {
+  const alreadyFriends =
+    (targetUser.friends && targetUser.friends.some((f) => (f._id || f).toString() === myIdStr)) ||
+    (req.user.friends && req.user.friends.some((f) => (f._id || f).toString() === targetUser._id.toString()));
+
+  if (alreadyFriends) {
     throw new ApiError(400, "You are already friends");
   }
 
   // Check if request already sent
-  const existingRequest = targetUser.friendRequests.find(
-    (req) => req.sender.toString() === req.user._id.toString()
-  );
+  const existingRequest =
+    targetUser.friendRequests &&
+    targetUser.friendRequests.find(
+      (item) => item.sender && item.sender.toString() === myIdStr
+    );
 
   if (existingRequest) {
     throw new ApiError(400, "Request already sent");
   }
 
-  targetUser.friendRequests.push({ sender: req.user._id });
+  targetUser.friendRequests.push({ sender: req.user._id, status: "pending" });
   await targetUser.save();
 
   res.status(200).json(new ApiResponse(200, {}, "Friend Request Sent Successfully"));
@@ -364,15 +411,17 @@ const getRequests = AsyncHandler(async (req, res) => {
 const acceptRequest = AsyncHandler(async (req, res) => {
   const { requestId, status } = req.body; // status: 'accepted' or 'rejected'
 
+  if (!requestId) {
+    throw new ApiError(400, "Request ID is required");
+  }
+
   const user = await User.findById(req.user._id);
-  const request = user.friendRequests.find((r) => r._id.toString() === requestId || r.sender.toString() === requestId); // Allow passing userId as requestId for convenience if needed, but better to be precise. Checking both for now.
-
-  // Actually, let's look up by sender ID, easier from frontend maybe?
-  // Let's assume requestId is the SENDER USER ID for simplicity in Search UI, or the literal subdoc ID.
-  // Let's stick to Sender ID for easier logic from "Accept" button in a list.
-
-  // Better logic: match where sender equals theID
-  const reqIndex = user.friendRequests.findIndex(r => r.sender.toString() === requestId);
+  const reqIndex = user.friendRequests.findIndex(
+    (item) =>
+      item &&
+      ((item.sender && item.sender.toString() === requestId.toString()) ||
+        (item._id && item._id.toString() === requestId.toString()))
+  );
 
   if (reqIndex === -1) {
     throw new ApiError(404, "Request not found");
@@ -381,12 +430,18 @@ const acceptRequest = AsyncHandler(async (req, res) => {
   if (status === 'accepted') {
     const senderId = user.friendRequests[reqIndex].sender;
 
-    user.friends.push(senderId);
+    if (!user.friends.some((f) => (f._id || f).toString() === senderId.toString())) {
+      user.friends.push(senderId);
+    }
 
     // Add me to sender's friend list too
     const senderUser = await User.findById(senderId);
-    senderUser.friends.push(user._id);
-    await senderUser.save();
+    if (senderUser) {
+      if (!senderUser.friends.some((f) => (f._id || f).toString() === user._id.toString())) {
+        senderUser.friends.push(user._id);
+      }
+      await senderUser.save();
+    }
   }
 
   // Remove request regardless of accepted/rejected

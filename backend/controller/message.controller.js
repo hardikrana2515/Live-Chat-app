@@ -162,6 +162,7 @@ const deleteMessage = AsyncHandler(async (req, res) => {
     message.isDeleted = true;
     message.message = "";
     message.media = "";
+    message.poll = undefined;
     message.deletedAt = new Date();
 
     await message.save();
@@ -297,4 +298,50 @@ const votePoll = AsyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(200, populatedMessage, "Vote registered"));
 });
 
-export { sendMessage, allMessages, deleteMessage, markAsRead, reactToMessage, votePoll };
+const editMessage = AsyncHandler(async (req, res) => {
+  const { messageId, message: newText } = req.body;
+  const userId = req.user._id;
+
+  if (!messageId || typeof newText !== "string") {
+    return res.status(400).json(new ApiResponse(400, null, "messageId and new message text are required"));
+  }
+
+  const existingMessage = await Message.findById(messageId);
+  if (!existingMessage) {
+    return res.status(404).json(new ApiResponse(404, null, "Message not found"));
+  }
+
+  // Only the original sender can edit their message
+  if (existingMessage.Sender.toString() !== userId.toString()) {
+    return res.status(403).json(new ApiResponse(403, null, "You can only edit your own messages"));
+  }
+
+  // Cannot edit deleted messages
+  if (existingMessage.isDeleted) {
+    return res.status(400).json(new ApiResponse(400, null, "Cannot edit a deleted message"));
+  }
+
+  existingMessage.message = newText;
+  existingMessage.isEdited = true;
+  existingMessage.editedAt = new Date();
+  await existingMessage.save();
+
+  let populatedMessage = await Message.findById(messageId)
+    .populate("Sender", "name avtar email")
+    .populate("reactions.user", "name avtar")
+    .populate({
+      path: "chatId",
+      populate: {
+        path: "members",
+        select: "name avtar email _id",
+      },
+    });
+
+  populatedMessage = populatedMessage.toObject();
+  populatedMessage.chat = populatedMessage.chatId;
+
+  return res.status(200).json(new ApiResponse(200, populatedMessage, "Message edited successfully"));
+});
+
+export { sendMessage, allMessages, deleteMessage, markAsRead, reactToMessage, votePoll, editMessage };
+

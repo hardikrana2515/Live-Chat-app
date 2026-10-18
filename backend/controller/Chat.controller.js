@@ -49,7 +49,6 @@ const AccessChat = AsyncHandler(async (req, res) => {
 });
 
 const fetchChat = AsyncHandler(async (req, res) => {
-  
   const chat = await ChatRoom.find({ members: req.user._id })
     .populate("members", "-password")
     .populate("lastMessage")
@@ -57,10 +56,7 @@ const fetchChat = AsyncHandler(async (req, res) => {
     .populate("creator", "-password")
     .sort({ updatedAt: -1 });
 
-  if (chat.length == 0) {
-    throw new ApiError(404, "Not chat Found");
-  }
-  return res.status(200).json(new ApiResponse(200, chat, "Chat Booom!!!"));
+  return res.status(200).json(new ApiResponse(200, chat || [], "Chat Booom!!!"));
 });
 
 const CreateGroup = AsyncHandler(async (req, res) => {
@@ -154,26 +150,30 @@ const RemovefromGroup = AsyncHandler(async (req, res) => {
   const { chatId, UserId } = req.body;
 
   if (!chatId || !UserId) {
-    // throw new ApiError(400, "chatId and userId are required.");
     return res.status(400)
-              .json(new ApiResponse(400,null,"chatId and userId are required."
-              ))
+              .json(new ApiResponse(400, null, "chatId and userId are required."));
   }
 
   const Chat = await ChatRoom.findById(chatId);
 
   if (!Chat) {
-    // throw new ApiError(404, "Chat not found.");
-     return res.status(404)
-              .json(new ApiResponse(403,null,"chat not found"
-              ))
+    return res.status(404)
+              .json(new ApiResponse(404, null, "Chat not found"));
   }
 
-  if (!Chat.admins.includes(req.user._id.toString())) {
-    // throw new ApiError(403, "Only admins can remove members.");
-     return res.status(403)
-              .json(new ApiResponse(403,null ,"Only admins can remove members."
-              ))
+  if (!Chat.admins.some((id) => id.toString() === req.user._id.toString())) {
+    return res.status(403)
+              .json(new ApiResponse(403, null, "Only admins can remove members."));
+  }
+
+  if (req.user._id.toString() === UserId.toString()) {
+    return res.status(403)
+              .json(new ApiResponse(403, null, "Use leaveGroup to exit the group."));
+  }
+
+  if (Chat.creator && Chat.creator.toString() === UserId.toString()) {
+    return res.status(405)
+              .json(new ApiResponse(405, null, "Group Creator can't be removed."));
   }
 
   const alreadyMember = Chat.members.some(
@@ -181,29 +181,13 @@ const RemovefromGroup = AsyncHandler(async (req, res) => {
   );
 
   if (!alreadyMember) {
-    // throw new ApiError(409, "User is not in this Group");
-     return res.status(409)
-              .json(new ApiResponse(409,null,"User is not in this Group"
-              ))
+    return res.status(409)
+              .json(new ApiResponse(409, null, "User is not in this Group"));
   }
 
   Chat.members = Chat.members.filter(
     (id) => id.toString() !== UserId.toString()
   );
-
-  if (req.user._id.toString() === UserId.toString()) {
-    // throw new ApiError(403, "Use leaveGroup to exit the group.");
-     return res.status(403)
-              .json(new ApiResponse(403,null,"Use leaveGroup to exit the group."
-              ))
-  }
-
-  if (Chat.creator.toString() === UserId.toString()) {
-    // throw new ApiError(405, "Group Creator can't be removed.");
-     return res.status(405)
-              .json(new ApiResponse(405,null,"Group Creator can't be removed."
-              ))
-  }
   Chat.admins = Chat.admins.filter((id) => id.toString() !== UserId.toString());
   await Chat.save();
 
@@ -214,7 +198,7 @@ const RemovefromGroup = AsyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, updatedChat, "memeber removed Succesfully"));
+    .json(new ApiResponse(200, updatedChat, "Member removed successfully"));
 });
 
 const addtoGroup = AsyncHandler(async (req, res) => {
@@ -404,28 +388,19 @@ const LeaveGroup = AsyncHandler(async (req, res) => {
   const { chatId } = req.body;
 
   if (!chatId) {
-    // throw new ApiError(400, "chatId is required.");
-     return res.status(400)
-              .json(new ApiResponse(400,null,"chatId is required."
-              ))
+    return res.status(400)
+              .json(new ApiResponse(400, null, "chatId is required."));
   }
 
   const Chat = await ChatRoom.findById(chatId);
 
   if (!Chat) {
-    // throw new ApiError(404, "Chat not found.");
-     return res.status(404)
-              .json(new ApiResponse(404,null,"Chat not Found."
-              ))
+    return res.status(404)
+              .json(new ApiResponse(404, null, "Chat not found."));
   }
-  if (Chat.creator.toString() === req.user._id.toString()) {
-    // throw new ApiError(
-    //   405,
-    //   "Creator cannot leave the group. Delete it instead."
-    // );
-     return res.status(405)
-              .json(new ApiResponse(405,null,"Creator cannot leave the group. Delete it instead."
-              ))
+  if (Chat.creator && Chat.creator.toString() === req.user._id.toString()) {
+    return res.status(405)
+              .json(new ApiResponse(405, null, "Creator cannot leave the group. Delete it instead."));
   }
 
   Chat.members = Chat.members.filter(
@@ -454,64 +429,67 @@ const DeleteGroup = AsyncHandler(async (req, res) => {
   const { chatId } = req.body;
 
   if (!chatId) {
-    // throw new ApiError(401, "chatId is required.");
-      return res.status(401)
-              .json(new ApiResponse(401,null,"chatId is required."
-              ))
+    return res.status(401)
+              .json(new ApiResponse(401, null, "chatId is required."));
   }
 
   const Chat = await ChatRoom.findById(chatId);
 
   if (!Chat) {
-    // throw new ApiError(404, "Chat not found.");
-      return res.status(404)
-              .json(new ApiResponse(404,null,"Chat not Found."
-              ))
+    return res.status(404)
+              .json(new ApiResponse(404, null, "Chat not found."));
   }
-  if (Chat.creator.toString() !== req.user._id.toString()) {
-    // throw new ApiError(405, "Only Group Creator Delete the Grroup");
-      return res.status(405)
-              .json(new ApiResponse(405,null,"Only Group Creator Delete the Grroup"
-              ))
+  const isMember = Chat.members && Chat.members.some(
+    (memberId) => memberId.toString() === req.user._id.toString()
+  );
+  if (!isMember) {
+    return res.status(403)
+              .json(new ApiResponse(403, null, "You are not a member of this chat"));
+  }
+  if (Chat.creator && Chat.creator.toString() !== req.user._id.toString()) {
+    return res.status(405)
+              .json(new ApiResponse(405, null, "Only group creator can delete the group"));
   }
   await ChatRoom.findByIdAndDelete(chatId);
 
-  await Message.deleteMany({ chatRoomId: chatId });
+  await Message.deleteMany({ chatId: chatId });
 
   return res
     .status(200)
     .json(new ApiResponse(200, null, "Group deleted successfully"));
 });
 
-const UploadGroupIcon =  AsyncHandler(async (req, res) => {
+const UploadGroupIcon = AsyncHandler(async (req, res) => {
   if (!req.file) {
     throw new ApiError(401, "Please first select file!");
   }
 
-  const imageUrl = `/Image/${req.file.filename}`;
-  const {chatId} = req.body
-  const chat = await ChatRoom.findByIdAndUpdate(
-    chatId,
-    { groupIcon: imageUrl },
-    { new: true }
-  );
+  const { chatId } = req.body;
+  const chat = await ChatRoom.findById(chatId);
 
   if (!chat) {
-    // throw new ApiError(404, "User not found");
     return res.status(404)
-              .json(new ApiResponse(404,null,"chat not found!!"
-              ))
+              .json(new ApiResponse(404, null, "Chat not found!"));
   }
-    if (!chat.admins.includes(req.user._id.toString())) {
-    // throw new ApiError(403, "Only admins can make admin.");
+
+  if (!chat.admins.some((id) => id.toString() === req.user._id.toString())) {
     return res.status(403)
-              .json(new ApiResponse(403,null,"Only admins can change groupIcon!!"
-              ))
+              .json(new ApiResponse(403, null, "Only admins can change groupIcon!"));
   }
+
+  const imageUrl = `/Image/${req.file.filename}`;
+  chat.groupIcon = imageUrl;
+  await chat.save();
+
+  const updatedChat = await ChatRoom.findById(chatId)
+    .populate("members", "-password")
+    .populate("admins", "-password")
+    .populate("creator", "-password");
+
   return res
     .status(200)
     .json(
-      new ApiResponse(200, { imageUrl, chat }, "Image uploaded successfully")
+      new ApiResponse(200, { imageUrl, chat: updatedChat }, "Image uploaded successfully")
     );
 });
 

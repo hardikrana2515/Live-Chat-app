@@ -19,10 +19,10 @@ import ResetPassword from './pages/ResetPassword';
 function App() {
 
   return (
-    <SocketStates ENDPOINT="http://localhost:4000">
-      <ChatState>
-        <MessageState>
-          <UserState>
+    <UserState>
+      <SocketStates ENDPOINT="http://localhost:4000">
+        <ChatState>
+          <MessageState>
             <ToastContainer />
             <div className="app ">
               <Routes>
@@ -35,10 +35,10 @@ function App() {
                 <Route path="*" element={<NotFoundpage />} />
               </Routes>
             </div>
-          </UserState>
-        </MessageState>
-      </ChatState>
-    </SocketStates>
+          </MessageState>
+        </ChatState>
+      </SocketStates>
+    </UserState>
   )
 }
 

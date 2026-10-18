@@ -5,15 +5,17 @@ import { IoCloseSharp } from "react-icons/io5";
 import { GiEvilEyes } from "react-icons/gi";
 import { toast } from 'react-toastify';
 const DMsg = () => {
-    const { AllMessages, Allmsg, setAllmsg, msg, DeleteMsg, Del, setDel } = useContext(messageContext);
+    const { AllMessages, Allmsg, setAllmsg, msg, DeleteMsg, Del, setDel, setEditingMsg } = useContext(messageContext);
     const { user, selectedchat } = useContext(chatContext);
 
     const [forevryone, setForevryone] = useState(false)
 
+    const isSender = (msg?.Sender?._id || msg?.Sender) === user?._id;
+    const withinOneHour = msg?.createdAt ? (new Date() - new Date(msg.createdAt) < 60 * 60 * 1000) : false;
+
     const hendleDelete = async () => {
         try {
-            await DeleteMsg(msg._id, forevryone)
-            await AllMessages(selectedchat._id)
+            await DeleteMsg(msg._id, forevryone && isSender, selectedchat?._id)
             setDel(false)
         } catch (e) {
             toast.error(e.message);
@@ -43,31 +45,44 @@ const DMsg = () => {
                 </h1>
 
                 {/* Checkbox Row */}
-                <div className="flex items-center justify-center gap-3 mb-6">
-                    <label className="text-gray-700 dark:text-gray-300 text-sm flex items-center gap-2">
-                        <input
-                            type="checkbox"
-                            className="accent-fuchsia-600 size-4"
-                            checked={forevryone}
-                            onChange={() => setForevryone(!forevryone)}
-                        />
-                        Delete for everyone
-                    </label>
-                </div>
+                {isSender && withinOneHour && (
+                    <div className="flex items-center justify-center gap-3 mb-6">
+                        <label className="text-gray-700 dark:text-gray-300 text-sm flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="accent-fuchsia-600 size-4"
+                                checked={forevryone}
+                                onChange={() => setForevryone(!forevryone)}
+                            />
+                            Delete for everyone
+                        </label>
+                    </div>
+                )}
 
                 {/* Action Buttons */}
-                <div className="flex justify-center gap-4">
+                <div className="flex flex-col sm:flex-row justify-center items-center gap-3">
                     <button
                         onClick={hendleDelete}
-                        className="bg-red-600 hover:bg-red-700 text-white font-medium px-6 py-2 rounded-full shadow-md transition-all duration-200"
+                        className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-medium px-5 py-2 rounded-full shadow-md transition-all duration-200"
                     >
-                        Yes
+                        Delete
                     </button>
+                    {isSender && !msg?.isDeleted && msg?.message && !msg?.message?.includes("[CONTACT_CARD]:::") && (
+                        <button
+                            onClick={() => {
+                                setDel(false);
+                                if (setEditingMsg) setEditingMsg(msg);
+                            }}
+                            className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-full shadow-md transition-all duration-200"
+                        >
+                            Edit Instead
+                        </button>
+                    )}
                     <button
                         onClick={() => setDel(false)}
-                        className="bg-gray-300 hover:bg-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 text-black dark:text-white font-medium px-6 py-2 rounded-full shadow-md transition-all duration-200"
+                        className="w-full sm:w-auto bg-gray-300 hover:bg-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 text-black dark:text-white font-medium px-5 py-2 rounded-full shadow-md transition-all duration-200"
                     >
-                        No
+                        Cancel
                     </button>
                 </div>
             </div>

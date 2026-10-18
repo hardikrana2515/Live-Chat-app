@@ -48,26 +48,12 @@ const CreatePollModal = ({ onClose }) => {
         };
 
         try {
-            // We need to send this to the 'Send' function or a modified version
-            // Since Send handles formData, we can append it as JSON
-            // But Send in MessageContext might be tailored for simple text/media.
-            // Let's modify MessageContext.js Send function or handle it manually here.
-            // Actually, best to use the Send context function if updated, or just call API directly here?
-            // Reusing Send function is better for consistency (and it calls message/send).
-
-            // We need to ensure Send can handle 'poll'.
-            // For now, let's assume we pass it as a separate arg or special handling.
-            // Let's modify Send in MessageContext to accept additionalData? 
-            // OR: Just call API directly since it's specific. 
-            // But let's check MessageContext first. Assuming we can pass it as a JSON string in formData 'poll' field.
-
-            await Send("", null, selectedchat._id, pollData); // Need to update Send signature
-
-            // For socket, we need to restructure how Send emits, or emit ourselves?
-            // The Send function usually returns the message. 
-            // Let's Assume Send returns the new message object.
-
+            const newPollMsg = await Send("", null, selectedchat._id, pollData);
+            if (socket.current && newPollMsg) {
+                socket.current.emit("new message", newPollMsg);
+            }
             onClose();
+            toast.success("Poll created successfully!");
         } catch (e) {
             console.error(e);
             toast.error("Failed to create poll");

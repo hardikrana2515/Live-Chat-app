@@ -21,8 +21,8 @@ const ChatBox = () => {
     const isOnline = (userId) => onlineUsers.includes(userId);
 
     const getOtherUser = (loggedInUser, members) => {
-
-        return members.find((m) => m._id !== loggedInUser._id);
+        if (!members || !Array.isArray(members)) return null;
+        return members.find((m) => (m._id || m) !== loggedInUser?._id) || null;
     };
 
     useEffect(() => {
@@ -78,24 +78,19 @@ const ChatBox = () => {
     };
 
     const declineCall = () => {
-        if (callData?.from) {
+        if (callData?.from && socket?.current) {
             socket.current.emit("endCall", { to: callData.from });
         }
         setCallData(null);
     };
 
     const endCall = () => {
-        const otherUserId = getOtherUser(user, selectedchat.members)._id;
-        // If we are in a call, we might want to notify other user? 
-        // VideoCall component handles peer destroy, but we should signal cleanup
-        // socket.emit("endCall", { to: otherUserId }); 
-        // Actually VideoCall component creates peer. 
-        // Let's pass a function to VideoCall to emit event if needed.
+        const otherUserObj = selectedchat?.members ? getOtherUser(user, selectedchat.members) : null;
+        const otherUserId = callData?.isIncoming ? callData?.from : otherUserObj?._id;
 
-        // For simplicity, just reset state. The peer connection 'close' event usually handles cleanup, 
-        // but signaling endCall is good practice.
-        if (callData?.from) socket.current.emit("endCall", { to: callData.from }); // If we answered
-        else if (selectedchat) socket.current.emit("endCall", { to: otherUserId }); // If we started
+        if (socket?.current && otherUserId) {
+            socket.current.emit("endCall", { to: otherUserId });
+        }
 
         setInCall(false);
         setCallData(null);
@@ -127,109 +122,120 @@ const ChatBox = () => {
             )}
 
             {/* Top Bar */}
-            <div className="flex flex-wrap sm:flex-nowrap items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700 shadow position-sticky top-0 ">
-                <div className="flex items-center gap-3">
-                    <img
-                        src={
-                            selectedchat.isGroup
-                                ? selectedchat.groupIcon
-                                    ? `http://localhost:4000${selectedchat.groupIcon}`
-                                    : "/group.png"
-                                : getOtherUser(user, selectedchat.members).avtar?.startsWith("data:image")
-                                    ? getOtherUser(user, selectedchat.members).avtar
-                                    : `http://localhost:4000${getOtherUser(user, selectedchat.members).avtar}`
-                        }
-                        alt={
-                            selectedchat.isGroup
-                                ? selectedchat.chatname
-                                : getOtherUser(user, selectedchat.members).userName
-                        }
-                        className="w-12 h-12 rounded-full object-cover"
-                    />
+            <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 shadow-sm sticky top-0 z-20">
+                <div className="flex items-center gap-3 overflow-hidden">
+                    {/* Mobile Back Button */}
+                    <button
+                        onClick={() => setSelectedchat(null)}
+                        className="sm:hidden p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white border border-slate-700 text-sm"
+                        title="Back to conversations"
+                    >
+                        <TbArrowBackUp className="text-base" />
+                    </button>
 
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-center sm:gap-2">
-                        <div className="text-lg font-semibold text-center sm:text-left flex flex-col">
-                            {selectedchat.isGroup
-                                ? selectedchat.chatname
-                                : getOtherUser(user, selectedchat.members)?.name}
+                    <div className="relative shrink-0">
+                        <img
+                            src={
+                                selectedchat.isGroup
+                                    ? selectedchat.groupIcon
+                                        ? `http://localhost:4000${selectedchat.groupIcon}`
+                                        : "/group.png"
+                                    : getOtherUser(user, selectedchat.members)?.avtar?.startsWith("data:image")
+                                        ? getOtherUser(user, selectedchat.members).avtar
+                                        : getOtherUser(user, selectedchat.members)?.avtar
+                                            ? `http://localhost:4000${getOtherUser(user, selectedchat.members).avtar}`
+                                            : "/avtar.png"
+                            }
+                            alt={
+                                selectedchat.isGroup
+                                    ? selectedchat.chatname
+                                    : getOtherUser(user, selectedchat.members)?.userName || "User"
+                            }
+                            className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border border-slate-700"
+                        />
+                        {!selectedchat.isGroup && isOnline(getOtherUser(user, selectedchat.members)?._id) && (
+                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-slate-900 rounded-full" />
+                        )}
+                    </div>
 
-                            {!selectedchat.isGroup && (
-                                <div className="flex items-center gap-1">
-                                    <span className="text-sm text-gray-400 hidden sm:block">
-                                        (@{getOtherUser(user, selectedchat.members)?.userName})
-                                    </span>
-                                    {isOnline(getOtherUser(user, selectedchat.members)?._id) ? (
-                                        <div className="flex items-center gap-1">
-                                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                                            <span className="text-xs text-green-500 font-medium">Online</span>
-                                        </div>
-                                    ) : (
-                                        <span className="text-xs text-gray-500">
-                                            Last seen: {getOtherUser(user, selectedchat.members)?.lastSeen
-                                                ? new Date(getOtherUser(user, selectedchat.members).lastSeen).toLocaleString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })
-                                                : "Offline"}
-                                        </span>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Typing Indicator */}
-                            {isTyping && (
-                                <div className="mt-1">
-                                    <TypingIndicator />
-                                </div>
+                    <div className="flex flex-col justify-center overflow-hidden min-w-0">
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-sm sm:text-base font-semibold text-white truncate leading-tight">
+                                {selectedchat.isGroup
+                                    ? selectedchat.chatname
+                                    : getOtherUser(user, selectedchat.members)?.name}
+                            </h2>
+                            {selectedchat.isGroup && (
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-1.5 py-0.2 rounded border border-indigo-500/20 shrink-0">
+                                    {selectedchat.members?.length} members
+                                </span>
                             )}
                         </div>
 
-                        {selectedchat.isGroup && (
-                            <p className="text-sm text-gray-500">
-                                Members: {selectedchat.members?.length}
-                            </p>
+                        {!selectedchat.isGroup && (
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                                {isOnline(getOtherUser(user, selectedchat.members)?._id) ? (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400">
+                                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                                        Online
+                                    </span>
+                                ) : (
+                                    <span className="text-[11px] text-slate-400 truncate">
+                                        {getOtherUser(user, selectedchat.members)?.lastSeen
+                                            ? `Last seen ${new Date(getOtherUser(user, selectedchat.members).lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                            : "Offline"}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Typing Indicator */}
+                        {isTyping && (
+                            <div className="mt-0.5">
+                                <TypingIndicator />
+                            </div>
                         )}
                     </div>
                 </div>
 
-                {/* Drawer Toggle & Actions */}
-                <div className="flex items-center gap-4 mt-2 sm:mt-0">
-
-                    {/* Call Buttons (Only 1:1 for now) */}
+                {/* Header Actions */}
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                    {/* Call Buttons (1:1 direct chats) */}
                     {!selectedchat.isGroup && (
                         <>
                             <button
                                 onClick={() => startCall('audio')}
-                                className="p-2 rounded-full bg-gray-700 hover:bg-green-600 text-white transition"
+                                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700/80 text-slate-300 hover:text-white transition-all shadow-sm"
                                 title="Start Voice Call"
                             >
-                                <IoCall className="text-xl" />
+                                <IoCall className="text-base" />
                             </button>
                             <button
                                 onClick={() => startCall('video')}
-                                className="p-2 rounded-full bg-gray-700 hover:bg-fuchsia-600 text-white transition mr-2"
+                                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700/80 text-slate-300 hover:text-white transition-all shadow-sm"
                                 title="Start Video Call"
                             >
-                                <IoVideocam className="text-xl" />
+                                <IoVideocam className="text-base" />
                             </button>
                         </>
                     )}
 
-                    <button
-                        onClick={() => setSelectedchat(null)}
-                        className="sm:hidden flex items-center gap-1 text-sm px-3 py-2 text-white bg-fuchsia-600 hover:bg-fuchsia-700 rounded-lg my-2 ml-2"
-                    >
-                        <span><TbArrowBackUp /></span> Back
-                    </button>
-
-                    <div className="drawer drawer-end">
+                    {/* Chat Drawer Trigger */}
+                    <div className="drawer drawer-end z-40">
                         <input id="chat-drawer" type="checkbox" className="drawer-toggle" />
                         <div className="drawer-content">
-                            <label htmlFor="chat-drawer" className="drawer-button text-gray-400 hover:text-white p-2 rounded-full">
-                                <BsLayoutSidebarReverse className="text-xl" />
+                            <label
+                                htmlFor="chat-drawer"
+                                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700/80 text-slate-300 hover:text-white cursor-pointer transition-all flex items-center justify-center"
+                                title="Conversation Details"
+                            >
+                                <BsLayoutSidebarReverse className="text-base" />
                             </label>
                         </div>
 
-                        <div className="drawer-side z-50">
+                        <div className="drawer-side">
                             <label htmlFor="chat-drawer" className="drawer-overlay"></label>
-                            <ul className="menu bg-base-200 gap-2 text-base-content min-h-full w-80 p-4">
+                            <ul className="menu p-4 w-72 min-h-full bg-slate-900 border-l border-slate-800 text-slate-200 gap-1.5">
                                 {/* Settings */}
                                 <div
                                     className="flex items-center gap-2 p-4 rounded-md hover:bg-gray-800 cursor-pointer text-lg transition-all duration-200"
@@ -307,7 +313,7 @@ const ChatBox = () => {
             </div>
 
             {/* Message Area */}
-            <div className="flex-1 overflow-y-auto ">
+            <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
                 <Message />
             </div>
         </div>

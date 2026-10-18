@@ -10,17 +10,17 @@ import upload from "../middleware/multer.js"
 
 const ChatRoutes = express.Router()
 
-ChatRoutes.post("/chat",Auth,AccessChat)
-ChatRoutes.get("/allChat",Auth,fetchChat)
-ChatRoutes.post("/makeGroup",[body("chatname").notEmpty().withMessage("Name is required")],upload.single("groupIcon"),Auth,CreateGroup)
-ChatRoutes.put("/renameGroup",[body("chatname").notEmpty().withMessage("Name is required")],Auth,RenameGroup)
-ChatRoutes.put("/addtoGroup",Auth,addtoGroup)
-ChatRoutes.put("/removefromGroup",Auth,RemovefromGroup)
-ChatRoutes.put("/makeAdmin",Auth,makeAdmin)
-ChatRoutes.put("/removeAdmin",Auth,RemoveAdmin)
-ChatRoutes.put("/leaveGroup",Auth,LeaveGroup)
-ChatRoutes.put("/deleteGroup",Auth,DeleteGroup)
-ChatRoutes.put("/groupimage",upload.single('groupIcon'),Auth,UploadGroupIcon)
+ChatRoutes.post("/chat", Auth, AccessChat)
+ChatRoutes.get("/allChat", Auth, fetchChat)
+ChatRoutes.post("/makeGroup", Auth, upload.single("groupIcon"), CreateGroup)
+ChatRoutes.put("/renameGroup", Auth, RenameGroup)
+ChatRoutes.put("/addtoGroup", Auth, addtoGroup)
+ChatRoutes.put("/removefromGroup", Auth, RemovefromGroup)
+ChatRoutes.put("/makeAdmin", Auth, makeAdmin)
+ChatRoutes.put("/removeAdmin", Auth, RemoveAdmin)
+ChatRoutes.put("/leaveGroup", Auth, LeaveGroup)
+ChatRoutes.put("/deleteGroup", Auth, DeleteGroup)
+ChatRoutes.put("/groupimage", Auth, upload.single('groupIcon'), UploadGroupIcon)
 
 export default ChatRoutes
 

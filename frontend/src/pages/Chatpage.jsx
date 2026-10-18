@@ -20,34 +20,30 @@ const Chatpage = () => {
   const { Del, setDel } = useContext(messageContext);
 
   return (
-   <div className="relative">
-  {/* Modals */}
-  {groupchat && <Group />}
-  {yesmodal && <Yesmodal />}
-  {Del && <DMsg />}
-  {settingmodal && <GroupSetting />}
-  {chatmodal && <Groupinfo />}
-  {card && <Account />}
-  {pass && <UpdatePassword />}
+    <div className="relative w-full h-screen overflow-hidden bg-slate-950 text-slate-100">
+      {/* Modals */}
+      {groupchat && <Group />}
+      {yesmodal && <Yesmodal />}
+      {Del && <DMsg />}
+      {settingmodal && <GroupSetting />}
+      {chatmodal && <Groupinfo />}
+      {card && <Account />}
+      {pass && <UpdatePassword />}
 
-  {/* Main Layout */}
-  <div className="flex h-screen w-full overflow-hidden">
-    
-    {/* Sidebar (Chat List) */}
-    <div className={`w-full sm:w-[30%] ${selectedchat ? 'hidden sm:block' : 'block'}`}>
-      <Sidebar />
+      {/* Main Responsive Grid Layout */}
+      <div className="flex h-screen w-full overflow-hidden">
+        {/* Sidebar (Chat List) */}
+        <div className={`w-full sm:w-[35%] md:w-[32%] lg:w-[28%] sm:max-w-sm flex-shrink-0 border-r border-slate-800/80 ${selectedchat ? 'hidden sm:flex' : 'flex'}`}>
+          <Sidebar />
+        </div>
+
+        {/* Chat Part */}
+        <div className={`flex-1 min-w-0 h-full ${selectedchat ? 'flex' : 'hidden sm:flex'}`}>
+          <Chatpart />
+        </div>
+      </div>
     </div>
+  );
+};
 
-    {/* Chat Part */}
-    <div className={`w-full sm:w-[70%] ${selectedchat ? 'block' : 'hidden sm:block'}`}>
-      <Chatpart />
-    </div>
-    
-  </div>
-</div>
-
-
-  )
-}
-
-export default Chatpage
+export default Chatpage;

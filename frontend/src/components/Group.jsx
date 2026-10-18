@@ -15,8 +15,6 @@ const Group = () => {
     const [groupName, setGroupName] = useState("");
     const [selectedMembers, setSelectedMembers] = useState([]);
 
-
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         setGLoading(true);
@@ -34,25 +32,27 @@ const Group = () => {
     };
 
     const handleCreateGroup = async () => {
-        await CreateGroup(groupName, selectedMembers, icon);
-        await Allchat()
+        try {
+            const memberIds = selectedMembers.map((m) => m._id);
+            await CreateGroup(groupName, memberIds, icon);
+            await Allchat();
+            setGroupchat(false);
+        } catch (e) {
+            toast.error(e.message);
+        }
     }
 
-    const handleSelectUser = (id) => {
-        if (!selectedMembers.includes(id)) {
-            setSelectedMembers([...selectedMembers, id]);
+    const handleSelectUser = (u) => {
+        if (!selectedMembers.some((m) => m._id === u._id)) {
+            setSelectedMembers([...selectedMembers, u]);
         } else {
             toast.info("User already added to group");
         }
     };
 
     const handleRemoveUser = (id) => {
-        setSelectedMembers(selectedMembers.filter((memberId) => memberId !== id));
+        setSelectedMembers(selectedMembers.filter((m) => m._id !== id));
     };
-
-
-
-
 
     return (
         <div className="fixed inset-0 bg-opacity-5 flex items-center justify-center z-50 backdrop-blur-xl px-4 transition-all duration-300 ease-in-out">
@@ -96,19 +96,20 @@ const Group = () => {
 
                 {/* Search Results */}
                 <div className="flex flex-col gap-2 mt-4 overflow-y-auto max-h-60">
-                    {GsearchUser.map((user) => (
+                    {GsearchUser.map((u) => (
                         <div
-                            key={user._id}
-                            onClick={() => handleSelectUser(user._id)}
+                            key={u._id}
+                            onClick={() => handleSelectUser(u)}
                             className="flex items-center w-full gap-4 p-2 rounded-md hover:bg-gray-800 cursor-pointer transition-all duration-200"
                         >
                             <img
-                                src={user.avtar?.startsWith('data:image') ? user.avtar : `http://localhost:4000${user.avtar}`}
-                                alt={user.userName}
+                                src={u.avtar?.startsWith('data:image') ? u.avtar : `http://localhost:4000${u.avtar}`}
+                                alt={u.userName}
                                 className="w-12 h-12 rounded-full object-cover"
                             />
                             <div className="flex flex-col justify-center overflow-hidden">
-                                <h3 className="text-white font-medium truncate">{user.name}</h3>
+                                <h3 className="text-white font-medium truncate">{u.name}</h3>
+                                <span className="text-gray-400 text-xs">@{u.userName}</span>
                             </div>
                         </div>
                     ))}
@@ -119,25 +120,22 @@ const Group = () => {
                     <div className="mt-4 p-2 rounded-md bg-gray-700 text-white">
                         <h4 className="mb-2 font-semibold">Selected Members:</h4>
                         <div className="flex flex-wrap gap-2 p-2">
-                            {selectedMembers.map((id) => {
-                                const user = GsearchUser.find(u => u._id === id);
-                                return user ? (
-                                    <div key={id} className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded-md">
-                                        <img
-                                            src={user.avtar?.startsWith('data:image') ? user.avtar : `http://localhost:4000${user.avtar}`}
-                                            alt={user.userName}
-                                            className="w-6 h-6 rounded-full object-cover"
-                                        />
-                                        <span className="text-sm">{user.name}</span>
-                                        <button
-                                            onClick={() => handleRemoveUser(id)}
-                                            className="text-red-500 hover:text-red-700 ml-1"
-                                        >
-                                            <IoCloseSharp />
-                                        </button>
-                                    </div>
-                                ) : null;
-                            })}
+                            {selectedMembers.map((u) => (
+                                <div key={u._id} className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded-md">
+                                    <img
+                                        src={u.avtar?.startsWith('data:image') ? u.avtar : `http://localhost:4000${u.avtar}`}
+                                        alt={u.userName}
+                                        className="w-6 h-6 rounded-full object-cover"
+                                    />
+                                    <span className="text-sm">{u.name}</span>
+                                    <button
+                                        onClick={() => handleRemoveUser(u._id)}
+                                        className="text-red-500 hover:text-red-700 ml-1"
+                                    >
+                                        <IoCloseSharp />
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}

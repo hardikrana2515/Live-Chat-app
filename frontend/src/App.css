@@ -11,10 +11,43 @@
   animation: fadeIn 0.3s ease-out;
 }
 
+/* Hide scrollbar completely for clean chat views */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* Minimalist, subtle scrollbar */
+.subtle-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.subtle-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.subtle-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.2);
+  border-radius: 9999px;
+}
+.subtle-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.4);
+}
+
+/* Deprecated custom-scrollbar alias for safety */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
+  height: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 0, 255, 0.4);
+  background-color: rgba(148, 163, 184, 0.2);
   border-radius: 9999px;
 }

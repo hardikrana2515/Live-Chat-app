@@ -6,7 +6,7 @@ import { toast } from 'react-toastify'
 
 const UserState = ({ children }) => {
 
-    const [login, setLogin] = useState(false);
+    const [login, setLogin] = useState(true);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false)
     const [searchUser, setSearchUser] = useState([])
@@ -47,12 +47,14 @@ const UserState = ({ children }) => {
                 },
                 withCredentials: true
             })
-            localStorage.setItem("token", res.data.Authtoken);
-            localStorage.setItem("userInfo", JSON.stringify(res.data.data.loggedinUser))
+            const token = res.data.data.Authtoken;
+            const userInfo = res.data.data.loggedinUser;
+            localStorage.setItem("token", token);
+            localStorage.setItem("userInfo", JSON.stringify(userInfo));
+            setUser({ ...userInfo, token });
             // console.log(res.data);
             return res.data
         } catch (e) {
-
             const errorMessage = e?.response?.data?.message || "Login failed";
             throw new Error(errorMessage);
         }
@@ -74,7 +76,7 @@ const UserState = ({ children }) => {
         }
     }
 
-    const Alluser = async (search) => {
+    const Alluser = async (search, silent = false) => {
         setLoading(true)
         try {
             const res = await API.get("user/Alluser",
@@ -86,40 +88,39 @@ const UserState = ({ children }) => {
                     withCredentials: true
                 })
             if (res.data.data.length === 0) {
-                toast.info("No matches found!");
+                if (!silent) toast.info("No matches found!");
                 setSearchUser([]);
             } else {
                 setSearchUser(res.data.data);
-
             }
-
-            // console.log(res.data.data);
         } catch (e) {
+            setSearchUser([]);
             const errorMessage = e?.response?.data?.message || "Search failed";
-            throw new Error(errorMessage);
+            if (!silent) toast.error(errorMessage);
         } finally {
             setLoading(false);
         }
     }
 
-
-
     const logout = async () => {
         try {
-            const res = await API.post("user/logout", {
+            await API.post("user/logout", {}, {
                 headers: {
                     "Content-Type": "application/json"
                 },
                 withCredentials: true
-            })
+            });
 
             localStorage.removeItem("token");
-            toast.done("Log out Successfully !!!")
-            setUser({})
-            setLogin(true)
+            localStorage.removeItem("userInfo");
+            toast.success("Logged out successfully!");
+            setUser({});
+            setLogin(true);
         } catch (e) {
-            const errorMessage = e?.response?.data?.message || "Logout failed";
-            throw new Error(errorMessage);
+            localStorage.removeItem("token");
+            localStorage.removeItem("userInfo");
+            setUser({});
+            setLogin(true);
         }
     }
 

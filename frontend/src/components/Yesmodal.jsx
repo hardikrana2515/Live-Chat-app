@@ -3,6 +3,7 @@ import { useContext } from "react";
 import chatContext from "../contexts/ChatContext/chatcontext";
 import { IoCloseSharp } from "react-icons/io5";
 import { GiEvilEyes } from "react-icons/gi";
+import { toast } from "react-toastify";
 
 
 const Yesmodal = () => {

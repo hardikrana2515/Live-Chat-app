@@ -11,23 +11,25 @@ const VideoCall = ({ socket, user, chat, EndCall, signalData, isIncoming, callTy
     const myVideo = useRef();
     const userVideo = useRef();
     const connectionRef = useRef();
-    const otherMember = chat.members.find(m => m._id !== user._id);
+    const streamRef = useRef();
+    const otherMember = chat?.members
+        ? chat.members.find(m => m._id !== user?._id)
+        : (signalData ? { name: signalData.name, _id: signalData.from } : null);
 
     useEffect(() => {
         let isMounted = true;
 
         const getMedia = async () => {
             try {
-                // Request video only if callType is video
                 const videoConstraint = callType === 'video' ? true : false;
                 const currentStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraint, audio: true });
 
                 if (!isMounted) {
-                    // Component unmounted before we got stream
                     currentStream.getTracks().forEach(track => track.stop());
                     return;
                 }
 
+                streamRef.current = currentStream;
                 setStream(currentStream);
                 if (myVideo.current && callType === 'video') myVideo.current.srcObject = currentStream;
 
@@ -53,30 +55,29 @@ const VideoCall = ({ socket, user, chat, EndCall, signalData, isIncoming, callTy
 
         return () => {
             isMounted = false;
-            // Immediate cleanup not possible here for the *pending* stream, handled by isMounted check.
-            // But if we have stream in state, stop it.
-            // Note: 'stream' state variable usage in cleanup is tricky due to closure.
-            // We'll trust setStream(null) logic or ref? 
-            // Better: use a ref for stream to access in cleanup
-        };
-    }, [callType]); // Re-run if callType changes (rare for this component lifecycle but safe)
-
-    // Effect for cleanup when component unmounts
-    useEffect(() => {
-        return () => {
-            if (stream) {
-                console.log("Stopping stream tracks...");
-                stream.getTracks().forEach(track => track.stop());
+            if (connectionRef.current) {
+                try { connectionRef.current.destroy(); } catch (e) { /* ignore */ }
+                connectionRef.current = null;
             }
-        }
-    }, [stream]);
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(track => track.stop());
+                streamRef.current = null;
+            }
+            if (socket) {
+                socket.off("callAccepted");
+            }
+        };
+    }, [callType]);
 
     const callUser = (currentStream) => {
-        // We need to know WHO we are calling. 
-        // In a group, simple-peer implies 1:1 or mesh.
-        // Let's assume 1:1 for now as per "simple-peer" standard usage.
-        const otherUser = chat.members.find(m => m._id !== user._id);
-        if (!otherUser) return;
+        const otherUser = chat?.members ? chat.members.find(m => m._id !== user?._id) : null;
+        if (!otherUser || !socket) {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+            EndCall();
+            return;
+        }
 
         const peer = new Peer({ initiator: true, trickle: false, stream: currentStream });
 
@@ -90,8 +91,8 @@ const VideoCall = ({ socket, user, chat, EndCall, signalData, isIncoming, callTy
             });
         });
 
-        peer.on('stream', (currentStream) => {
-            if (userVideo.current && callType === 'video') userVideo.current.srcObject = currentStream;
+        peer.on('stream', (remoteStream) => {
+            if (userVideo.current && callType === 'video') userVideo.current.srcObject = remoteStream;
         });
 
         socket.on("callAccepted", (signal) => {
@@ -103,6 +104,7 @@ const VideoCall = ({ socket, user, chat, EndCall, signalData, isIncoming, callTy
     };
 
     const answerCall = (currentStream) => {
+        if (!socket || !signalData) return;
         setCallAccepted(true);
         const peer = new Peer({ initiator: false, trickle: false, stream: currentStream });
 
@@ -110,11 +112,13 @@ const VideoCall = ({ socket, user, chat, EndCall, signalData, isIncoming, callTy
             socket.emit("answerCall", { signal: data, to: signalData.from });
         });
 
-        peer.on('stream', (currentStream) => {
-            if (userVideo.current && callType === 'video') userVideo.current.srcObject = currentStream;
+        peer.on('stream', (remoteStream) => {
+            if (userVideo.current && callType === 'video') userVideo.current.srcObject = remoteStream;
         });
 
-        peer.signal(signalData.signalData);
+        if (signalData.signalData) {
+            peer.signal(signalData.signalData);
+        }
 
         connectionRef.current = peer;
     };

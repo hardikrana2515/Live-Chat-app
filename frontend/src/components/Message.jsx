@@ -8,11 +8,13 @@ import AllchatMsg from './AllchatMsg'
 import { toast } from 'react-toastify';
 import SocketContext from '../contexts/Socket.io.Context/socket.Context.js'
 import EmojiPicker from 'emoji-picker-react'
-import { encryptMessage, encryptFile } from '../utils/EncryptionUtils';
+import { encryptMessage, encryptFile, decryptMessage } from '../utils/EncryptionUtils';
+import { playNotificationSound, playSendSound, showDesktopNotification } from '../utils/SoundUtils';
 import { MdPoll } from "react-icons/md";
 import CreatePollModal from './CreatePollModal';
 import CameraModal from './CameraModal';
 import AttachmentMenu from './AttachmentMenu';
+import ShareContactModal from './ShareContactModal';
 
 const Message = () => {
 
@@ -27,6 +29,7 @@ const Message = () => {
     const [showPollModal, setShowPollModal] = useState(false);
     const [showAttachments, setShowAttachments] = useState(false);
     const [showCameraModal, setShowCameraModal] = useState(false);
+    const [showContactModal, setShowContactModal] = useState(false);
 
     // Refs for file inputs
     const documentInputRef = useRef(null);
@@ -40,8 +43,33 @@ const Message = () => {
         socket.current.emit("join chat", selectedchat._id);
 
         socket.current.on("message received", (newMsg) => {
-            if (newMsg.chat._id === selectedchat._id) {
+            const incomingChatId = newMsg.chat?._id || newMsg.chat;
+            if (incomingChatId === selectedchat._id) {
                 setAllmsg((prev) => [...prev, newMsg]);
+            }
+
+            // Play notification tone
+            playNotificationSound();
+
+            // Trigger desktop notification if tab is backgrounded or looking at another chat
+            if (document.hidden || incomingChatId !== selectedchat._id) {
+                const preview = newMsg.message
+                    ? (newMsg.message.includes("[CONTACT_CARD]:::") ? "Shared a contact card" : decryptMessage(newMsg.message))
+                    : (newMsg.media ? "Shared an attachment" : (newMsg.poll ? "Sent a poll" : "New message"));
+
+                showDesktopNotification(newMsg.Sender?.name || "New Message", {
+                    body: preview,
+                    icon: newMsg.Sender?.avtar
+                        ? (newMsg.Sender.avtar.startsWith('data:') ? newMsg.Sender.avtar : `http://localhost:4000${newMsg.Sender.avtar}`)
+                        : "/chat.png"
+                });
+            }
+        });
+
+        socket.current.on("message edited", (updatedMsg) => {
+            const chatId = updatedMsg.chatId?._id || updatedMsg.chatId || updatedMsg.chat?._id || updatedMsg.chat;
+            if (chatId === selectedchat._id) {
+                setAllmsg(prev => prev.map(m => m._id === updatedMsg._id ? updatedMsg : m));
             }
         });
 
@@ -57,10 +85,20 @@ const Message = () => {
             }
         });
 
+        socket.current.on("message deleted", ({ messageId, forEveryone }) => {
+            if (forEveryone) {
+                setAllmsg(prev => prev.map(m => m._id === messageId ? { ...m, isDeleted: true, message: "", media: "", poll: null } : m));
+            } else {
+                setAllmsg(prev => prev.filter(m => m._id !== messageId));
+            }
+        });
+
         return () => {
             socket.current.off("message received");
+            socket.current.off("message edited");
             socket.current.off("reaction updated");
             socket.current.off("poll update");
+            socket.current.off("message deleted");
         };
     }, [selectedchat]);
 
@@ -102,93 +140,63 @@ const Message = () => {
     };
 
     const [recording, setRecording] = useState(false);
-    const [mediaRecorder, setMediaRecorder] = useState(null);
-    const [audioChunks, setAudioChunks] = useState([]);
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
+    const audioStreamRef = useRef(null);
 
-    const startRecording = async () => {
+    useEffect(() => {
+        return () => {
+            if (audioStreamRef.current) {
+                audioStreamRef.current.getTracks().forEach(track => track.stop());
+                audioStreamRef.current = null;
+            }
+        };
+    }, []);
+
+    const startRecordingSafe = async () => {
+        let stream = null;
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioStreamRef.current = stream;
             const recorder = new MediaRecorder(stream);
-            setMediaRecorder(recorder);
-            setAudioChunks([]);
+            mediaRecorderRef.current = recorder;
+            audioChunksRef.current = [];
 
             recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) {
-                    setAudioChunks((prev) => [...prev, e.data]);
+                if (e.data && e.data.size > 0) {
+                    audioChunksRef.current.push(e.data);
                 }
             };
 
-            recorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                // We could play it back or send it immediately. Let's send it immediately for simplicity like WhatsApp
-                // Or let's create a file from it and set it as media
-
-                // Wait, audioChunks state might not be updated in this closure if using state directly. 
-                // Better to use a mutable ref for chunks or improved logic.
-                // Let's rely on the final event to compose blob? 
-                // Actually, standard pattern is to use a ref for chunks or setState functional update, but onstop closure captures old state.
-                // Resetting that:
+            recorder.onstop = () => {
+                setRecording(false);
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const audioFile = new File([audioBlob], `voice_${Date.now()}.webm`, { type: "audio/webm" });
+                setMedia(audioFile);
+                toast.success("Voice message recorded! Click send to share.");
+                stream.getTracks().forEach(track => track.stop());
+                audioStreamRef.current = null;
             };
-
-            // Correction: let's do simple ondataavailable push.
-            // But we encounter closure stale state issues in onstop if we just read 'audioChunks'.
-            // Simple fix: Define onstop inside the effect or use a Ref for chunks.
 
             recorder.start();
             setRecording(true);
-            toast.info("Recording started...");
+            toast.info("Recording voice message...");
         } catch (error) {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                audioStreamRef.current = null;
+            }
+            setRecording(false);
             toast.error("Could not access microphone");
             console.error(error);
         }
     };
 
     const stopRecording = () => {
-        if (mediaRecorder && mediaRecorder.state !== "inactive") {
-            mediaRecorder.stop();
-            setRecording(false);
-
-            // Because onstop closure issue, let's hack: 
-            // We can't easily access the chunks here cleanly without a Ref. 
-            // So I will just use the chunks collected so far? 
-            // Actually, let's rewrite startRecording to use a local variable for chunks within the closure or use a Ref.
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+            mediaRecorderRef.current.stop();
         }
     };
-
-    // Ref-based approach for audio chunks
-    const audioChunksRef = useRef([]);
-    const startRecordingSafe = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const recorder = new MediaRecorder(stream);
-            setMediaRecorder(recorder);
-            audioChunksRef.current = [];
-
-            recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) {
-                    audioChunksRef.current.push(e.data); // Push to ref
-                }
-            };
-
-            recorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                const audioFile = new File([audioBlob], "voice_message.webm", { type: "audio/webm" });
-                setMedia(audioFile); // Set as attachment
-                // Optional: Auto-send or just let user send. 
-                // User asked for "Voice message system". Usually that implies send.
-                // Let's set it as media and let user send, showing preview.
-                toast.success("Voice message recorded!");
-
-                // Clean up stream tracks
-                stream.getTracks().forEach(track => track.stop());
-            };
-
-            recorder.start();
-            setRecording(true);
-        } catch (error) {
-            toast.error("Could not access microphone");
-        }
-    }
 
 
     const sendMessageRaw = async (msgText, file) => {
@@ -215,6 +223,7 @@ const Message = () => {
                 socket.current.emit("new message", sentMsg);
                 setMessage('');
                 setMedia(null);
+                playSendSound();
             }
         } catch (e) {
             toast.error(e.message);
@@ -236,47 +245,46 @@ const Message = () => {
 
             {/* Media Preview */}
             {media && (
-                <div className="flex items-center justify-between bg-gray-700 p-2 rounded-lg mt-2 mx-4">
-                    <div className="flex items-center gap-2">
-                        {media.type.startsWith('audio') ? <IoMic className="text-fuchsia-400" /> : <LuPaperclip />}
-                        <p className="text-sm sm:text-base text-neutral-300 truncate">{media.name}</p>
+                <div className="flex items-center justify-between bg-slate-800/90 border border-slate-700/80 p-2.5 rounded-xl mx-4 mb-2 shadow-sm">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                        {media.type.startsWith('audio') ? <IoMic className="text-indigo-400 shrink-0" /> : <LuPaperclip className="text-slate-400 shrink-0" />}
+                        <p className="text-xs sm:text-sm text-slate-200 truncate">{media.name}</p>
                     </div>
-                    <IoCloseSharp className="hover:text-red-500 cursor-pointer" onClick={() => setMedia(null)} />
+                    <button
+                        type="button"
+                        onClick={() => setMedia(null)}
+                        className="text-slate-400 hover:text-rose-400 p-1 transition"
+                    >
+                        <IoCloseSharp className="text-base" />
+                    </button>
                 </div>
             )}
 
-
-            {/* Input Area */}
-            <div className="p-4 mb-3">
+            {/* Input Dock Toolbar */}
+            <div className="p-3 sm:p-4 bg-slate-900/95 backdrop-blur-md border-t border-slate-800">
                 {selectedchat && !selectedchat.isGroup && user.blockedUsers?.includes(selectedchat.members.find(m => m._id !== user._id)?._id) ? (
-                    <div className="flex items-center justify-center p-4 bg-gray-800 rounded-full border border-red-500/50">
-                        <p className="text-red-400 font-medium text-sm">You have blocked this user. Unblock to send messages.</p>
+                    <div className="flex items-center justify-center p-3 bg-rose-950/30 rounded-xl border border-rose-500/30 text-center">
+                        <p className="text-rose-400 font-medium text-xs sm:text-sm">You have blocked this contact. Unblock to send messages.</p>
                     </div>
                 ) : (
                     <form
-                        className="flex flex-col sm:flex-row gap-3 sm:gap-2 items-stretch"
+                        className="flex items-center gap-2"
                         onSubmit={handleSend}
                     >
-                        {/* Input + Icons */}
-                        <div className="flex items-center gap-2 w-full px-4 py-2 rounded-full bg-gray-800 border border-gray-600 focus-within:ring-2 focus-within:ring-fuchsia-600 transition-all">
-                            <input
-                                type="text"
-                                placeholder="Type a message..."
-                                onChange={handleInputChange}
-                                value={message}
-                                className="flex-1 bg-transparent outline-none text-white placeholder:text-gray-400 text-sm sm:text-base"
-                                disabled={recording}
-                            />
-
-                            {recording && <span className="text-red-500 animate-pulse text-sm font-semibold mr-2">Recording...</span>}
-
-                            {/* Emoji Picker */}
+                        {/* Input Container */}
+                        <div className="flex items-center gap-2 flex-1 px-3.5 py-2 rounded-xl bg-slate-950/80 border border-slate-700/80 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500/50 transition-all">
+                            {/* Emoji Picker Trigger */}
                             <div className="relative">
-                                <div onClick={() => setEmoji(!emoji)} className="cursor-pointer">
-                                    <GrEmoji className="text-xl text-gray-400 hover:text-white" />
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setEmoji(!emoji)}
+                                    className="text-slate-400 hover:text-slate-200 transition focus:outline-none flex items-center"
+                                    title="Choose Emoji"
+                                >
+                                    <GrEmoji className="text-lg" />
+                                </button>
                                 {emoji && (
-                                    <div className="absolute bottom-12 right-0 z-50 transform -translate-x-1/2 sm:translate-x-0" >
+                                    <div className="absolute bottom-10 left-0 z-50">
                                         <EmojiPicker
                                             onEmojiClick={(e) => setMessage((prev) => prev + e.emoji)}
                                             disableSearchBar
@@ -285,35 +293,53 @@ const Message = () => {
                                             width="280px"
                                             height="320px"
                                             theme="dark"
-                                            className="shadow-2xl"
+                                            className="shadow-2xl border border-slate-700"
                                         />
                                     </div>
                                 )}
                             </div>
 
+                            <input
+                                type="text"
+                                placeholder={recording ? "Recording audio message..." : "Type a secure message..."}
+                                onChange={handleInputChange}
+                                value={message}
+                                className="flex-1 bg-transparent outline-none text-white placeholder:text-slate-500 text-xs sm:text-sm"
+                                disabled={recording}
+                            />
+
+                            {recording && (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-400 animate-pulse">
+                                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                                    REC
+                                </span>
+                            )}
+
                             {/* Attachment Menu & Toggle */}
-                            <div className="relative">
-                                <div
+                            <div className="relative flex items-center">
+                                <button
+                                    type="button"
                                     onClick={() => setShowAttachments(!showAttachments)}
-                                    className={`cursor-pointer transition-transform ${showAttachments ? 'rotate-45' : ''}`}
+                                    className={`text-slate-400 hover:text-slate-200 transition-transform ${showAttachments ? 'rotate-45 text-indigo-400' : ''}`}
+                                    title="Attach File or Media"
                                 >
-                                    <LuPaperclip className="text-xl text-gray-400 hover:text-gray-200" />
-                                </div>
+                                    <LuPaperclip className="text-lg" />
+                                </button>
 
                                 {showAttachments && (
                                     <>
-                                        {/* Overlay to close menu when clicking outside */}
                                         <div
                                             className="fixed inset-0 z-40"
                                             onClick={() => setShowAttachments(false)}
-                                        ></div>
+                                        />
                                         <AttachmentMenu onOptionClick={(id) => {
-                                            setShowAttachments(false); // Close menu on selection
+                                            setShowAttachments(false);
 
-                                            // Handle Options
                                             if (id === 'poll') {
                                                 if (selectedchat.isGroup) setShowPollModal(true);
-                                                else toast.info("Polls are only available in group chats.");
+                                                else toast.info("Polls are available in group conversations.");
+                                            } else if (id === 'contact') {
+                                                setShowContactModal(true);
                                             } else if (id === 'document') {
                                                 documentInputRef.current.click();
                                             } else if (id === 'gallery') {
@@ -323,7 +349,7 @@ const Message = () => {
                                             } else if (id === 'audio') {
                                                 audioInputRef.current.click();
                                             } else {
-                                                toast.info("This feature is coming soon!");
+                                                toast.info("Coming soon!");
                                             }
                                         }} />
                                     </>
@@ -336,7 +362,7 @@ const Message = () => {
                                 ref={documentInputRef}
                                 onChange={handleFileChange}
                                 className="hidden"
-                                accept="*/*" // Document accepts all
+                                accept="*/*"
                             />
                             <input
                                 type="file"
@@ -352,27 +378,30 @@ const Message = () => {
                                 className="hidden"
                                 accept="audio/*"
                             />
-
-
                         </div>
 
-
                         {/* Mic / Send Button */}
-                        <div className="flex gap-2 items-center">
+                        <div className="flex items-center">
                             {!message && !media ? (
                                 <button
                                     type="button"
                                     onClick={recording ? stopRecording : startRecordingSafe}
-                                    className={`p-3 rounded-full transition duration-200 ${recording ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'}`}
+                                    className={`p-2.5 rounded-xl transition duration-200 ${
+                                        recording
+                                            ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-600/30'
+                                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/80'
+                                    }`}
+                                    title={recording ? "Stop Recording" : "Voice Message"}
                                 >
-                                    {recording ? <IoStop className="text-xl text-white" /> : <IoMic className="text-xl text-white" />}
+                                    {recording ? <IoStop className="text-lg" /> : <IoMic className="text-lg" />}
                                 </button>
                             ) : (
                                 <button
                                     type="submit"
-                                    className="p-3 rounded-full bg-fuchsia-600 hover:bg-fuchsia-700 transition duration-200"
+                                    className="p-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 transition duration-150 transform active:scale-95 flex items-center justify-center"
+                                    title="Send Message"
                                 >
-                                    <IoSend className="text-xl text-white" />
+                                    <IoSend className="text-lg" />
                                 </button>
                             )}
                         </div>
@@ -384,12 +413,28 @@ const Message = () => {
                 isOpen={showCameraModal}
                 onClose={() => setShowCameraModal(false)}
                 onCapture={(file) => {
-                    // setMedia(file); // Optional: if we want to show it briefly or relying on state update vs direct send
-                    // toast.success("Photo captured!");
                     setShowCameraModal(false);
                     sendMessageRaw("", file); // Auto-send immediately
                 }}
             />
+            {showContactModal && (
+                <ShareContactModal
+                    onClose={() => setShowContactModal(false)}
+                    onShare={(contact) => {
+                        setShowContactModal(false);
+                        const contactPayload = `[CONTACT_CARD]:::${JSON.stringify({
+                            name: contact.name,
+                            userName: contact.userName,
+                            email: contact.email,
+                            phonenumber: contact.phonenumber,
+                            avtar: contact.avtar,
+                            _id: contact._id
+                        })}`;
+                        sendMessageRaw(contactPayload);
+                        toast.success(`Shared ${contact.name}'s contact!`);
+                    }}
+                />
+            )}
         </div>
     );
 };

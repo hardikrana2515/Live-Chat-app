@@ -24,7 +24,7 @@ const GroupSetting = () => {
     const handleImage = async (e) => {
         e.preventDefault()
         if (!Img) {
-            toast.call("No image selected!")
+            toast.warning("No image selected!")
             return
         }
         try {

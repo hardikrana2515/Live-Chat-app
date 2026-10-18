@@ -25,8 +25,12 @@ app.use(cors({
 
 
 app.use(express.json());
+import fs from 'fs';
 
-dotenv.config();
+const envPath = fs.existsSync(path.join(path.resolve(), '.env'))
+  ? path.join(path.resolve(), '.env')
+  : path.join(path.resolve(), 'backend', '.env');
+dotenv.config({ path: envPath });
 
 app.use(cookieParser());
 
@@ -51,7 +55,7 @@ app.use("/api/ChatApp/Chat", ChatRoutes);
 import { errorHandler } from "./middleware/error.middleware.js";
 app.use(errorHandler);
 
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 4000;
 
 connectDB();
 
@@ -91,9 +95,29 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("poll update", (updatedMsg) => {
+    const chat = updatedMsg?.chatId || updatedMsg?.chat;
+    if (chat) {
+      socket.in(chat._id ? chat._id : chat).emit("poll update", updatedMsg);
+    }
+  });
+
+  socket.on("delete message", (data) => {
+    if (data?.chatId) {
+      socket.in(data.chatId).emit("message deleted", data);
+    }
+  });
+
+  socket.on("edit message", (updatedMsg) => {
+    const chat = updatedMsg?.chatId || updatedMsg?.chat;
+    if (chat) {
+      socket.in(chat._id ? chat._id : chat).emit("message edited", updatedMsg);
+    }
+  });
+
   socket.on("new message", (msg) => {
     const chat = msg.chat;
-    if (!chat.members) return;
+    if (!chat || !chat.members) return;
 
     chat.members.forEach((member) => {
       if (member._id !== msg.Sender._id) {

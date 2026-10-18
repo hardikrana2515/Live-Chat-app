@@ -37,7 +37,14 @@ const EncryptedAttachment = ({ url, type, alt }) => {
 
     const fileType = type.toLowerCase();
 
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType)) {
+    const isAudio = ['mp3', 'wav', 'aac', 'm4a', 'ogg'].includes(fileType) ||
+                    (fileType === 'webm' && (url.toLowerCase().includes('voice') || url.toLowerCase().includes('audio')));
+
+    if (isAudio) {
+        return (
+            <AudioMessage src={decryptedUrl} />
+        );
+    } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType)) {
         return (
             <img
                 src={decryptedUrl}
@@ -45,16 +52,12 @@ const EncryptedAttachment = ({ url, type, alt }) => {
                 className="rounded-md max-w-full max-h-64 object-contain"
             />
         );
-    } else if (['mp4', 'webm', 'ogg'].includes(fileType)) {
+    } else if (['mp4', 'webm', 'mov', 'mkv'].includes(fileType)) {
         return (
             <video controls className="rounded-md max-w-full max-h-64">
                 <source src={decryptedUrl} type={`video/${fileType}`} />
                 Your browser does not support the video tag.
             </video>
-        );
-    } else if (['mp3', 'wav', 'webm'].includes(fileType)) {
-        return (
-            <AudioMessage src={decryptedUrl} />
         );
     } else if (fileType === 'pdf') {
         return (

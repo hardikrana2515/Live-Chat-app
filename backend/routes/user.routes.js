@@ -16,8 +16,6 @@ UserRoutes.post("/register",
     userRegister
 )
 UserRoutes.post("/login", [
-    // body("email").isEmail().withMessage("please valid e-mai"),
-    //  body("phonenumber").isMobilePhone().withMessage("enter valid mobile number"),
     body("password").isLength(8).withMessage("Password length should be minimum 6"),
 ],
     userLogin
@@ -25,7 +23,7 @@ UserRoutes.post("/login", [
 UserRoutes.post("/logout", userLogout)
 UserRoutes.get("/getUser", Auth, getUser)
 UserRoutes.put("/changePassword", Auth, updatePassword)
-UserRoutes.put("/image", upload.single("avtar"), Auth, uploadImage);
+UserRoutes.put("/image", Auth, upload.single("avtar"), uploadImage);
 UserRoutes.get("/Alluser", Auth, Alluser);
 
 UserRoutes.post("/password/forgot", forgotPassword);

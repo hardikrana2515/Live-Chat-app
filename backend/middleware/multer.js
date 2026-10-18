@@ -1,15 +1,19 @@
 import multer from "multer"
 import path from "path"
+import fs from "fs"
+
+const imageDir = path.join(path.resolve(), "public", "Image");
+const mediaDir = path.join(path.resolve(), "public", "media");
+
+if (!fs.existsSync(imageDir)) fs.mkdirSync(imageDir, { recursive: true });
+if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
 
 const storage = multer.diskStorage({
-
     destination: function (req, file, cb) {
         if (file.mimetype.startsWith('image/')) {
-            cb(null, "./public/Image")
-        } else if (file.mimetype.startsWith('video/') || file.mimetype.startsWith('audio/') || (file.mimetype == ('application/pdf'))) {
-            cb(null, "./public/media")
+            cb(null, imageDir);
         } else {
-            cb(null, "./public/media")
+            cb(null, mediaDir);
         }
     },
     filename: function (req, file, cb) {

@@ -50,12 +50,12 @@ const ChatState = ({ children }) => {
         setChat([res.data.data, ...chat])
       }
       // console.log(res.data)
-      setChatLoading(true)
+      setChatLoading(false)
     } catch (e) {
       const errorMessage = e?.response?.data?.message || "Failed to Create Chat"
       throw new Error(errorMessage)
     } finally {
-      setChatLoading(true)
+      setChatLoading(false)
     }
   }
 
@@ -79,11 +79,14 @@ const ChatState = ({ children }) => {
         },
         withCredentials: true
       })
-      setChat(res.data.data)
-      // console.log(res.data.data)
+      setChat(res.data.data || [])
     } catch (e) {
-      const errorMessage = e?.response?.data?.message || "Cannot show the chat "
-      throw new Error(errorMessage)
+      if (e?.response?.status === 404) {
+        setChat([])
+      } else {
+        const errorMessage = e?.response?.data?.message || "Cannot show the chat "
+        console.error("Allchat error:", errorMessage);
+      }
     }
 
   }
@@ -137,8 +140,10 @@ const ChatState = ({ children }) => {
       // console.log(res.data.data)
       toast.success("Group created successfully!")
       setGroup(res.data.data)
+      setGroupchat(false)
+      return res.data.data
     } catch (e) {
-      const errorMessage = e?.response?.data?.message || e.message || "Cannot show the chat"
+      const errorMessage = e?.response?.data?.message || e.message || "Cannot create group"
       toast.error(errorMessage)
       throw new Error(errorMessage)
     } finally {
@@ -185,7 +190,7 @@ const ChatState = ({ children }) => {
       // console.log(res.data.data)
       return res.data.data
     } catch (error) {
-      const errorMessage = e?.response?.data?.message || e.message
+      const errorMessage = error?.response?.data?.message || error.message
       toast.error(errorMessage)
       throw new Error(errorMessage)
     }
