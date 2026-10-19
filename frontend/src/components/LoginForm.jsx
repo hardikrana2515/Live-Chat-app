@@ -43,16 +43,16 @@ const LoginForm = () => {
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
             {error && (
-                <div className="flex items-center gap-2 p-3 text-xs sm:text-sm text-red-200 bg-red-900/40 border border-red-500/30 rounded-xl backdrop-blur-md animate-fadeIn">
-                    <FiAlertCircle className="shrink-0 text-red-400 text-base" />
+                <div className="flex items-center gap-2 p-3 text-xs sm:text-sm text-[var(--c-danger)] bg-[var(--c-danger-10)] border border-[var(--c-danger-40)] rounded-xl backdrop-blur-md animate-fadeIn">
+                    <FiAlertCircle className="shrink-0 text-[var(--c-danger)] text-base" />
                     <span>{error}</span>
                 </div>
             )}
 
             {/* Method Switcher: Email / Phone */}
-            <div className="flex items-center justify-between text-xs text-slate-400 border-b border-slate-800 pb-2.5">
-                <span className="font-medium text-slate-400">Sign in with:</span>
-                <div className="flex gap-1.5 p-0.5 bg-slate-950/80 border border-slate-800 rounded-lg">
+            <div className="flex items-center justify-between text-xs text-[var(--c-text-2)] border-b border-[var(--c-line)] pb-2.5">
+                <span className="font-medium text-[var(--c-text-2)]">Sign in with:</span>
+                <div className="flex gap-1.5 p-0.5 bg-[var(--c-canvas-80)] border border-[var(--c-line)] rounded-lg">
                     <button
                         type="button"
                         onClick={() => {
@@ -61,8 +61,8 @@ const LoginForm = () => {
                         }}
                         className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                             authMethod === 'email'
-                                ? 'bg-indigo-600 text-white shadow-sm'
-                                : 'text-slate-400 hover:text-slate-200'
+                                ? 'bg-[var(--c-primary)] text-[var(--c-text)] shadow-sm'
+                                : 'text-[var(--c-text-2)] hover:text-[var(--c-text)]'
                         }`}
                     >
                         Email
@@ -75,8 +75,8 @@ const LoginForm = () => {
                         }}
                         className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                             authMethod === 'phone'
-                                ? 'bg-indigo-600 text-white shadow-sm'
-                                : 'text-slate-400 hover:text-slate-200'
+                                ? 'bg-[var(--c-primary)] text-[var(--c-text)] shadow-sm'
+                                : 'text-[var(--c-text-2)] hover:text-[var(--c-text)]'
                         }`}
                     >
                         Phone
@@ -87,9 +87,9 @@ const LoginForm = () => {
             {/* Email or Phone Input */}
             {authMethod === 'email' ? (
                 <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-slate-300">Email Address</label>
+                    <label className="text-xs font-medium text-[var(--c-text-2)]">Email Address</label>
                     <div className="relative flex items-center">
-                        <span className="absolute left-3.5 text-slate-500 pointer-events-none">
+                        <span className="absolute left-3.5 text-[var(--c-text-3)] pointer-events-none">
                             <FiMail className="text-base" />
                         </span>
                         <input
@@ -99,15 +99,15 @@ const LoginForm = () => {
                             value={credentials.email}
                             onChange={handleChange}
                             placeholder="name@company.com"
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                            className="w-full pl-10 pr-4 py-2.5 bg-[var(--c-canvas-80)] border border-[var(--c-line)] rounded-xl text-[var(--c-text)] text-sm  focus:outline-none focus:border-[var(--c-primary)] focus:ring-1 focus:ring-[var(--c-primary)] transition-all"
                         />
                     </div>
                 </div>
             ) : (
                 <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-slate-300">Phone Number</label>
+                    <label className="text-xs font-medium text-[var(--c-text-2)]">Phone Number</label>
                     <div className="relative flex items-center">
-                        <span className="absolute left-3.5 text-slate-500 pointer-events-none">
+                        <span className="absolute left-3.5 text-[var(--c-text-3)] pointer-events-none">
                             <FiPhone className="text-base" />
                         </span>
                         <input
@@ -119,7 +119,7 @@ const LoginForm = () => {
                             value={credentials.phone}
                             onChange={handleChange}
                             placeholder="10-digit mobile number"
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                            className="w-full pl-10 pr-4 py-2.5 bg-[var(--c-canvas-80)] border border-[var(--c-line)] rounded-xl text-[var(--c-text)] text-sm  focus:outline-none focus:border-[var(--c-primary)] focus:ring-1 focus:ring-[var(--c-primary)] transition-all"
                         />
                     </div>
                 </div>
@@ -128,16 +128,16 @@ const LoginForm = () => {
             {/* Password Input */}
             <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-slate-300">Password</label>
+                    <label className="text-xs font-medium text-[var(--c-text-2)]">Password</label>
                     <Link
                         to="/password/forgot"
-                        className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                        className="text-xs text-[var(--c-link)] hover:text-[var(--c-link)] transition-colors"
                     >
                         Forgot password?
                     </Link>
                 </div>
                 <div className="relative flex items-center">
-                    <span className="absolute left-3.5 text-slate-500 pointer-events-none">
+                    <span className="absolute left-3.5 text-[var(--c-text-3)] pointer-events-none">
                         <FiLock className="text-base" />
                     </span>
                     <input
@@ -147,12 +147,12 @@ const LoginForm = () => {
                         value={credentials.password}
                         onChange={handleChange}
                         placeholder="••••••••"
-                        className="w-full pl-10 pr-10 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                        className="w-full pl-10 pr-10 py-2.5 bg-[var(--c-canvas-80)] border border-[var(--c-line)] rounded-xl text-[var(--c-text)] text-sm  focus:outline-none focus:border-[var(--c-primary)] focus:ring-1 focus:ring-[var(--c-primary)] transition-all"
                     />
                     <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 text-slate-400 hover:text-slate-200 transition-colors focus:outline-none"
+                        className="absolute right-3.5 text-[var(--c-text-2)] hover:text-[var(--c-text)] transition-colors focus:outline-none"
                     >
                         {showPassword ? <FiEyeOff className="text-base" /> : <FiEye className="text-base" />}
                     </button>
@@ -163,7 +163,7 @@ const LoginForm = () => {
             <button
                 type="submit"
                 disabled={submitting}
-                className="mt-2 w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-xl shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 transition-all duration-200 transform active:scale-[0.98] disabled:opacity-50"
+                className="mt-2 w-full py-2.5 px-4 bg-[var(--c-primary)] hover:bg-[var(--c-primary-hover)] text-[var(--c-text)] font-medium text-sm rounded-xl shadow-lg  flex items-center justify-center gap-2 transition-all duration-200 transform active:scale-[0.98] disabled:opacity-50"
             >
                 {submitting ? (
                     <span className="loading loading-spinner loading-sm" />
@@ -176,8 +176,8 @@ const LoginForm = () => {
             </button>
 
             {/* Toggle Switch to Sign Up */}
-            <div className="text-center mt-2 pt-2 border-t border-slate-800">
-                <p className="text-xs text-slate-400">
+            <div className="text-center mt-2 pt-2 border-t border-[var(--c-line)]">
+                <p className="text-xs text-[var(--c-text-2)]">
                     New to Talkyy?{' '}
                     <button
                         type="button"
@@ -185,7 +185,7 @@ const LoginForm = () => {
                             setError('');
                             setLogin(false);
                         }}
-                        className="text-indigo-400 font-semibold hover:text-indigo-300 hover:underline transition-colors ml-1"
+                        className="text-[var(--c-link)] font-semibold hover:text-[var(--c-link)] hover:underline transition-colors ml-1"
                     >
                         Create an account
                     </button>

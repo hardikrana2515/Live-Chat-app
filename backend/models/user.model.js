@@ -75,6 +75,12 @@ const userschema = new mongoose.Schema(
         ref: "User",
       },
     ],
+    // ECDH P-256 public key (raw, base64). The matching private key never
+    // leaves the user's device (localStorage) — see frontend cryptoKeys.js. (Issue 3.2)
+    publicKey: {
+      type: String,
+      default: "",
+    },
   },
   {
     timestamps: true,

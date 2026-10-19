@@ -4,9 +4,13 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import connectDB from "./database/db.js";
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { Server } from 'socket.io'
 import http from 'http'
 
+// Anchor paths to this file's directory (backend/), so the server works no
+// matter which directory Node was started from. (Issue E4)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const server = http.createServer(app);
@@ -27,16 +31,17 @@ app.use(cors({
 app.use(express.json());
 import fs from 'fs';
 
-const envPath = fs.existsSync(path.join(path.resolve(), '.env'))
-  ? path.join(path.resolve(), '.env')
-  : path.join(path.resolve(), 'backend', '.env');
+const localEnv = path.join(__dirname, '.env');
+const envPath = fs.existsSync(localEnv)
+  ? localEnv
+  : path.join(path.resolve(), '.env');
 dotenv.config({ path: envPath });
 
 app.use(cookieParser());
 
-app.use('/Image', express.static(path.join(path.resolve(), 'public', 'Image')));
+app.use('/Image', express.static(path.join(__dirname, 'public', 'Image')));
 
-app.use("/media", express.static(path.join(path.resolve(), 'public', 'media')));
+app.use("/media", express.static(path.join(__dirname, 'public', 'media')));
 
 app.get("/", (req, res) => {
   res.send("Hello Chatt!");
@@ -46,7 +51,6 @@ app.get("/", (req, res) => {
 import userRouter from "../backend/routes/user.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 import ChatRoutes from "./routes/chat.routes.js";
-import { Socket } from "dgram";
 
 app.use("/api/ChatApp/user", userRouter);
 app.use("/api/ChatApp/message", messageRoutes);
@@ -62,88 +66,155 @@ connectDB();
 const onlineUsers = new Map();
 
 import User from "./models/user.model.js";
+import ChatRoom from "./models/Chatroom.model.js";
 
-// ... (existing imports)
+// Expose io to express controllers (group lifecycle events)
+app.set('io', io);
+
+const toId = (v) => String(v?._id ?? v ?? '');
+
+// Resolve a chat's member ids (payload may carry a populated chat or just an id)
+const resolveMemberIds = async (chat) => {
+  if (chat?.members?.length) return chat.members.map(toId);
+  const chatId = toId(chat);
+  if (!chatId) return [];
+  const found = await ChatRoom.findById(chatId).select('members');
+  return found?.members?.map(toId) || [];
+};
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
   socket.on("setup", async (userData) => {
-    socket.join(userData._id);
-    onlineUsers.set(userData._id, socket.id);
+    const uid = toId(userData?._id || userData);
+    if (!uid) return;
+    socket.join(uid);
+    onlineUsers.set(uid, socket.id);
     io.emit("getOnlineUsers", Array.from(onlineUsers.keys()));
 
     // Update isOnline status
-    await User.findByIdAndUpdate(userData._id, { isOnline: true });
+    await User.findByIdAndUpdate(uid, { isOnline: true });
 
-    console.log(`${userData.name} joined personal room`);
+    console.log(`${userData?.name || uid} joined personal room: ${uid}`);
   });
 
   socket.on("join chat", (roomId) => {
-    socket.join(roomId);
-    console.log(`User joined chat room: ${roomId}`);
-  });
-
-  socket.on("typing", (room) => socket.in(room).emit("typing", room));
-  socket.on("stop typing", (room) => socket.in(room).emit("stop typing", room));
-
-  socket.on("new reaction", (updatedMsg) => {
-    // Broadcast to specific chat room
-    const chat = updatedMsg.chatId || updatedMsg.chat;
-    if (chat) {
-      socket.in(chat._id ? chat._id : chat).emit("reaction updated", updatedMsg);
+    const rid = toId(roomId);
+    if (rid) {
+      socket.join(rid);
+      console.log(`User joined chat room: ${rid}`);
     }
   });
 
-  socket.on("poll update", (updatedMsg) => {
+  socket.on("typing", (room) => socket.in(toId(room)).emit("typing", room));
+  socket.on("stop typing", (room) => socket.in(toId(room)).emit("stop typing", room));
+
+  // Message mutations must reach EVERY member, not only those who currently
+  // have the chat room open (clients join chat rooms only while viewing them).
+  // Personal rooms (joined at "setup") guarantee delivery everywhere. (Issue 2.2)
+
+  socket.on("new reaction", async (updatedMsg) => {
     const chat = updatedMsg?.chatId || updatedMsg?.chat;
-    if (chat) {
-      socket.in(chat._id ? chat._id : chat).emit("poll update", updatedMsg);
-    }
+    const memberIds = await resolveMemberIds(chat);
+    if (!memberIds.length && toId(chat)) return socket.in(toId(chat)).emit("reaction updated", updatedMsg);
+    memberIds.forEach((id) => io.to(id).emit("reaction updated", updatedMsg));
   });
 
-  socket.on("delete message", (data) => {
-    if (data?.chatId) {
-      socket.in(data.chatId).emit("message deleted", data);
-    }
-  });
-
-  socket.on("edit message", (updatedMsg) => {
+  socket.on("poll update", async (updatedMsg) => {
     const chat = updatedMsg?.chatId || updatedMsg?.chat;
-    if (chat) {
-      socket.in(chat._id ? chat._id : chat).emit("message edited", updatedMsg);
-    }
+    const memberIds = await resolveMemberIds(chat);
+    if (!memberIds.length && toId(chat)) return socket.in(toId(chat)).emit("poll update", updatedMsg);
+    memberIds.forEach((id) => io.to(id).emit("poll update", updatedMsg));
   });
 
-  socket.on("new message", (msg) => {
-    const chat = msg.chat;
-    if (!chat || !chat.members) return;
+  socket.on("delete message", async (data) => {
+    if (!data?.chatId) return;
+    // "Delete for me" is a private action — never relay it to other members
+    if (!data.forEveryone) return;
+    const memberIds = await resolveMemberIds(data.chatId);
+    if (!memberIds.length) return socket.in(toId(data.chatId)).emit("message deleted", data);
+    memberIds.forEach((id) => io.to(id).emit("message deleted", data));
+  });
 
-    chat.members.forEach((member) => {
-      if (member._id !== msg.Sender._id) {
-        socket.to(member._id).emit("message received", msg);
+  socket.on("edit message", async (updatedMsg) => {
+    const chat = updatedMsg?.chatId || updatedMsg?.chat;
+    const memberIds = await resolveMemberIds(chat);
+    if (!memberIds.length && toId(chat)) return socket.in(toId(chat)).emit("message edited", updatedMsg);
+    memberIds.forEach((id) => io.to(id).emit("message edited", updatedMsg));
+  });
+
+  socket.on("messages read", async (data) => {
+    const chat = data?.chatId;
+    const memberIds = await resolveMemberIds(chat);
+    if (!memberIds.length && toId(chat)) return socket.in(toId(chat)).emit("messages read", data);
+    memberIds.forEach((id) => io.to(id).emit("messages read", data));
+  });
+
+  socket.on("new message", async (msg) => {
+    let chat = msg?.chat;
+    let members = chat?.members;
+    if (!members?.length && (chat?._id || chat)) {
+      members = await resolveMemberIds(chat?._id || chat);
+    }
+    if (!members || !members.length) return;
+
+    const senderId = toId(msg.Sender);
+    members.forEach((member) => {
+      const memberId = toId(member);
+      if (memberId && memberId !== senderId) {
+        io.to(memberId).emit("message received", msg);
       }
     });
   });
 
-  // Call Signaling Events
+  // Call Signaling Events (normalized room delivery)
   socket.on("callUser", (data) => {
     // data: { userToCall, signalData, from, name, callType }
-    socket.to(data.userToCall).emit("callUser", {
-      signal: data.signalData,
-      from: data.from,
-      name: data.name,
-      callType: data.callType
+    const targetId = toId(data?.userToCall);
+    const callerId = toId(data?.from);
+    console.log(`[Socket] callUser from ${callerId} (${data?.name}) to ${targetId}`);
+
+    io.to(targetId).emit("callUser", {
+      signal: data?.signalData,
+      from: callerId,
+      name: data?.name,
+      callType: data?.callType
     });
   });
 
   socket.on("answerCall", (data) => {
     // data: { signal, to }
-    socket.to(data.to).emit("callAccepted", data.signal);
+    const targetId = toId(data?.to);
+    console.log(`[Socket] answerCall to ${targetId}`);
+    io.to(targetId).emit("callAccepted", data?.signal);
   });
 
   socket.on("endCall", ({ to }) => {
-    socket.to(to).emit("callEnded");
+    const targetId = toId(to);
+    console.log(`[Socket] endCall to ${targetId}`);
+    io.to(targetId).emit("callEnded");
+  });
+
+  socket.on("cameraToggle", (data) => {
+    const targetId = toId(data?.to);
+    if (targetId) {
+      io.to(targetId).emit("cameraToggle", { enabled: data?.enabled });
+    }
+  });
+
+  // Friend Request live signaling
+  socket.on("friend request sent", (data) => {
+    const targetId = toId(data?.targetUserId);
+    if (targetId) {
+      io.to(targetId).emit("friend request received", data);
+    }
+  });
+
+  socket.on("friend request responded", (data) => {
+    const targetId = toId(data?.targetUserId);
+    if (targetId) {
+      io.to(targetId).emit("friend request updated", data);
+    }
   });
 
   socket.on("disconnect", async () => {

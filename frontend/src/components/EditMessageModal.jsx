@@ -9,7 +9,9 @@ const EditMessageModal = ({ message, onClose, onSave }) => {
 
     useEffect(() => {
         if (message && message.message) {
-            setText(decryptMessage(message.message));
+            // chatId selects the E2EE key for this message's conversation
+            const chatId = message.chatId?._id ?? message.chatId ?? message.chat?._id ?? message.chat;
+            setText(decryptMessage(message.message, chatId));
         } else {
             setText('');
         }
@@ -42,19 +44,19 @@ const EditMessageModal = ({ message, onClose, onSave }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-[var(--c-overlay)] backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div className="bg-[var(--c-panel)] border border-[var(--c-line)] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col">
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900/80">
-                    <div className="flex items-center gap-2 text-white font-semibold text-base">
-                        <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
+                <div className="flex items-center justify-between p-4 border-b border-[var(--c-line)] bg-[var(--c-panel-80)]">
+                    <div className="flex items-center gap-2 text-[var(--c-text)] font-semibold text-base">
+                        <div className="p-2 rounded-xl bg-[var(--c-primary-soft)] text-[var(--c-link)]">
                             <FiEdit2 className="text-base" />
                         </div>
                         <span>Edit Message</span>
                     </div>
                     <button
                         onClick={onClose}
-                        className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition"
+                        className="text-[var(--c-text-2)] hover:text-[var(--c-text)] p-1.5 rounded-lg hover:bg-[var(--c-surface)] transition"
                     >
                         <IoCloseSharp className="text-xl" />
                     </button>
@@ -70,28 +72,28 @@ const EditMessageModal = ({ message, onClose, onSave }) => {
                             rows={4}
                             autoFocus
                             placeholder="Type your updated message..."
-                            className="w-full p-3 bg-slate-950/80 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition resize-none leading-relaxed"
+                            className="w-full p-3 bg-[var(--c-canvas-80)] border border-[var(--c-line)] rounded-xl text-xs sm:text-sm text-[var(--c-text)]  focus:outline-none focus:border-[var(--c-primary)] transition resize-none leading-relaxed"
                         />
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <div className="flex items-center justify-between text-[11px] text-[var(--c-text-2)]">
                         <span>Press <b>Enter</b> to save, <b>Shift + Enter</b> for new line</span>
                         <span>{text.length} chars</span>
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800/80">
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--c-line-50)]">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition"
+                            className="px-4 py-2 text-xs font-semibold text-[var(--c-text-2)] hover:text-[var(--c-text)] rounded-xl hover:bg-[var(--c-surface)] transition"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={saving || !text.trim()}
-                            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold text-xs rounded-xl shadow-md shadow-indigo-600/30 transition flex items-center gap-1.5"
+                            className="px-5 py-2 bg-[var(--c-primary)] hover:bg-[var(--c-primary-hover)] disabled:opacity-50 text-[var(--c-text)] font-semibold text-xs rounded-xl shadow-md  transition flex items-center gap-1.5"
                         >
                             {saving ? (
                                 <span className="loading loading-spinner loading-xs" />

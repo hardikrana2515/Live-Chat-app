@@ -1,29 +1,52 @@
-import { useState, useContext, useEffect } from 'react'
+import { useState, useContext, useEffect, useRef } from 'react'
 import { FaSearch } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { IoCloseSharp } from "react-icons/io5";
 import { MdOutlineArrowBack } from "react-icons/md";
-import userContext from '../contexts/UserContext/userContext'
 import chatContext from '../contexts/ChatContext/chatcontext'
 
 const Group = () => {
-    const { loading } = useContext(userContext);
     const { groupchat, setGroupchat, group, setGroup, CreateGroup,
-        GroupUsersearch, setGLoading, setGSearchUser, GsearchUser, Allchat } = useContext(chatContext);
+        GroupUsersearch, setGLoading, setGSearchUser, GsearchUser, GLoading, Allchat } = useContext(chatContext);
     const [search, setSearch] = useState('');
     const [icon, setIcon] = useState('');
     const [groupName, setGroupName] = useState("");
     const [selectedMembers, setSelectedMembers] = useState([]);
+    const debounceRef = useRef(null);
+
+    // Live search: results appear as you type (debounced), matching the rest
+    // of the app's search UX (Search.jsx / Addmember.jsx). (UI flaw 5.4)
+    useEffect(() => {
+        const q = search.trim();
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+
+        if (!q) {
+            setGSearchUser([]);
+            return;
+        }
+
+        debounceRef.current = setTimeout(async () => {
+            try {
+                await GroupUsersearch(q, true); // silent: no toast while typing
+            } catch (e) {
+                toast.error(e.message);
+            }
+        }, 350);
+
+        return () => clearTimeout(debounceRef.current);
+    }, [search]);
+
+    // Clear search state when the modal unmounts
+    useEffect(() => () => { setGSearchUser([]); setGLoading(false); }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setGLoading(true);
+        if (!search.trim()) return;
+        if (debounceRef.current) clearTimeout(debounceRef.current);
         try {
             await GroupUsersearch(search.trim());
         } catch (e) {
             toast.error(e.message);
-        } finally {
-            setGLoading(false);
         }
     };
 
@@ -55,13 +78,14 @@ const Group = () => {
     };
 
     return (
-        <div className="fixed inset-0 bg-opacity-5 flex items-center justify-center z-50 backdrop-blur-xl px-4 transition-all duration-300 ease-in-out">
-            <div className="bg-white dark:bg-gray-900 text-black dark:text-white w-full max-w-lg rounded-2xl p-6 relative shadow-2xl animate-fadeIn border border-gray-300 dark:border-gray-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
+            <div className="scrim" />
+            <div className="modal-card max-w-lg p-6 animate-fadeIn">
 
                 {/* Title + Close */}
-                <h2 className="text-xl font-semibold text-center mb-4 text-fuchsia-600 dark:text-fuchsia-400">Create Group</h2>
+                <h2 className="text-xl font-semibold text-center mb-4 text-[var(--c-text)]">Create Group</h2>
                 <button
-                    className="absolute top-3 right-3 text-2xl text-gray-400 hover:text-red-500 transition-transform hover:scale-110"
+                    className="absolute top-3 right-3 text-2xl text-[var(--c-text-2)] hover:text-[var(--c-danger)] transition-transform hover:scale-110"
                     onClick={() => setGroupchat(false)}
                 >
                     <IoCloseSharp />
@@ -70,26 +94,26 @@ const Group = () => {
                 {/* Search Input */}
                 <form
                     onSubmit={handleSubmit}
-                    className="flex items-center bg-transparent backdrop-blur-2xl border-2 rounded-full border-amber-100 px-3 py-1 w-full"
+                    className="flex items-center border-2 rounded-full border-[var(--c-line)] px-3 py-1 w-full"
                 >
                     <input
                         type="text"
                         value={search}
                         onChange={handleChange}
-                        className="flex-grow bg-transparent outline-none text-white placeholder:text-gray-300 px-2"
+                        className="flex-grow bg-transparent border-none outline-none focus:outline-none focus:border-none focus:ring-0 focus-visible:outline-none shadow-none text-[var(--c-text)] text-sm px-2 ring-0"
                         placeholder="Search users..."
                     />
                     <button
                         type="submit"
                         disabled={search.length === 0}
-                        className="btn btn-circle h-10 w-10 bg-gray-400 text-white ml-2"
+                        className="btn btn-circle h-10 w-10 bg-[var(--c-primary)] text-[var(--c-on-primary)] ml-2"
                     >
-                        {loading ? <span className="loading loading-spinner loading-sm" /> : <FaSearch />}
+                        {GLoading ? <span className="loading loading-spinner loading-sm text-[var(--c-primary)]" /> : <FaSearch />}
                     </button>
                     {GsearchUser.length > 0 && (
                         <MdOutlineArrowBack
                             onClick={() => setGSearchUser([])}
-                            className="text-white ml-3 rounded-full h-7 w-7 p-1 cursor-pointer text-xl hover:bg-fuchsia-400"
+                            className="text-[var(--c-text)] ml-3 rounded-full h-7 w-7 p-1 cursor-pointer text-xl hover:bg-[var(--c-primary-soft)]"
                         />
                     )}
                 </form>
@@ -100,7 +124,7 @@ const Group = () => {
                         <div
                             key={u._id}
                             onClick={() => handleSelectUser(u)}
-                            className="flex items-center w-full gap-4 p-2 rounded-md hover:bg-gray-800 cursor-pointer transition-all duration-200"
+                            className="flex items-center w-full gap-4 p-2 rounded-md hover:bg-[var(--c-hover)] cursor-pointer transition-all duration-200"
                         >
                             <img
                                 src={u.avtar?.startsWith('data:image') ? u.avtar : `http://localhost:4000${u.avtar}`}
@@ -108,8 +132,8 @@ const Group = () => {
                                 className="w-12 h-12 rounded-full object-cover"
                             />
                             <div className="flex flex-col justify-center overflow-hidden">
-                                <h3 className="text-white font-medium truncate">{u.name}</h3>
-                                <span className="text-gray-400 text-xs">@{u.userName}</span>
+                                <h3 className="text-[var(--c-text)] font-medium truncate">{u.name}</h3>
+                                <span className="text-[var(--c-text-2)] text-xs">@{u.userName}</span>
                             </div>
                         </div>
                     ))}
@@ -117,11 +141,11 @@ const Group = () => {
 
                 {/* Selected Members */}
                 {selectedMembers.length > 0 && (
-                    <div className="mt-4 p-2 rounded-md bg-gray-700 text-white">
+                    <div className="mt-4 p-2 rounded-md bg-[var(--c-raised)] text-[var(--c-text)]">
                         <h4 className="mb-2 font-semibold">Selected Members:</h4>
                         <div className="flex flex-wrap gap-2 p-2">
                             {selectedMembers.map((u) => (
-                                <div key={u._id} className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded-md">
+                                <div key={u._id} className="flex items-center gap-2 px-3 py-1 bg-[var(--c-surface)] rounded-md">
                                     <img
                                         src={u.avtar?.startsWith('data:image') ? u.avtar : `http://localhost:4000${u.avtar}`}
                                         alt={u.userName}
@@ -130,7 +154,7 @@ const Group = () => {
                                     <span className="text-sm">{u.name}</span>
                                     <button
                                         onClick={() => handleRemoveUser(u._id)}
-                                        className="text-red-500 hover:text-red-700 ml-1"
+                                        className="text-[var(--c-danger)] hover:brightness-125 ml-1"
                                     >
                                         <IoCloseSharp />
                                     </button>
@@ -141,27 +165,27 @@ const Group = () => {
                 )}
 
                 {/* Group Name & Icon */}
-                <div className="w-full mt-6 p-4 bg-gray-800 rounded-lg space-y-4">
+                <div className="w-full mt-6 p-4 bg-[var(--c-surface)] rounded-lg space-y-4">
                     <input
                         type="text"
                         value={groupName}
                         onChange={(e) => setGroupName(e.target.value)}
                         placeholder="Group Name"
-                        className="w-full px-4 py-2 rounded-md bg-gray-900 text-white border border-gray-600 focus:ring-fuchsia-500"
+                        className="w-full px-4 py-2 rounded-md bg-[var(--c-panel)] text-[var(--c-text)] border border-[var(--c-line)] focus:ring-[var(--c-primary)]"
                     />
                     <input
                         type="file"
                         accept="image/*"
                         onChange={(e) => setIcon(e.target.files[0])}
-                        className="w-full px-4 py-2 rounded-md bg-gray-900 text-white border border-gray-600 focus:ring-fuchsia-500"
+                        className="w-full px-4 py-2 rounded-md bg-[var(--c-panel)] text-[var(--c-text)] border border-[var(--c-line)] focus:ring-[var(--c-primary)]"
                     />
 
                     <button
                         disabled={groupName.length < 2 || selectedMembers.length < 2}
                         onClick={handleCreateGroup}
                         className={`w-full py-2 rounded-md font-medium transition ${groupName.length < 2 || selectedMembers.length < 2
-                                ? 'bg-fuchsia-400 cursor-not-allowed opacity-50 text-white'
-                                : 'bg-fuchsia-600 text-white hover:bg-fuchsia-700 cursor-pointer'
+                                ? 'bg-[var(--c-primary-soft)] cursor-not-allowed opacity-50 text-[var(--c-text)]'
+                                : 'bg-[var(--c-primary)] text-[var(--c-on-primary)] hover:bg-[var(--c-primary-hover)] cursor-pointer'
                             }`}
                     >
                         Create Group

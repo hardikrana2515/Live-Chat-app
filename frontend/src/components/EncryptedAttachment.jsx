@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { decryptFile } from '../utils/EncryptionUtils';
 import AudioMessage from './AudioMessage'; // Reuse your audio player
 
-const EncryptedAttachment = ({ url, type, alt }) => {
+const EncryptedAttachment = ({ url, type, alt, chatId }) => {
     const [decryptedUrl, setDecryptedUrl] = useState(null);
     const [loading, setLoading] = useState(true);
+    // Track the blob URL in a ref: the cleanup closure would otherwise capture
+    // the `decryptedUrl` state from the first render (always null) and
+    // URL.revokeObjectURL would never run — leaking blob URLs into memory. (Issue 1.5)
+    const blobUrlRef = useRef(null);
 
     useEffect(() => {
         let isMounted = true;
@@ -13,10 +17,15 @@ const EncryptedAttachment = ({ url, type, alt }) => {
             // If local localhost url, we need to decrypt
             // If it's a blob (local preview), it might not need decryption if checked earlier, 
             // but here we assume 'url' is from server (http...) which is encrypted text file.
-            const res = await decryptFile(url);
+            const res = await decryptFile(url, chatId);
             if (isMounted) {
+                blobUrlRef.current = (typeof res === 'string' && res.startsWith('blob:')) ? res : null;
                 setDecryptedUrl(res);
                 setLoading(false);
+            } else if (typeof res === 'string' && res.startsWith('blob:')) {
+                // Unmounted while decrypting (e.g. StrictMode double-invoke) —
+                // revoke immediately so the blob never leaks.
+                URL.revokeObjectURL(res);
             }
         };
 
@@ -24,14 +33,14 @@ const EncryptedAttachment = ({ url, type, alt }) => {
 
         return () => {
             isMounted = false;
-            // Cleanup object URL if created
-            if (decryptedUrl && decryptedUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(decryptedUrl);
+            if (blobUrlRef.current) {
+                URL.revokeObjectURL(blobUrlRef.current);
+                blobUrlRef.current = null;
             }
         };
-    }, [url]);
+    }, [url, chatId]);
 
-    if (loading) return <div className="animate-pulse bg-gray-700 h-32 w-32 rounded flex items-center justify-center text-xs text-gray-400">Decrypting...</div>;
+    if (loading) return <div className="animate-pulse bg-[var(--c-raised)] h-32 w-32 rounded flex items-center justify-center text-xs text-[var(--c-text-2)]">Decrypting...</div>;
 
     if (!type) return null;
 
@@ -65,7 +74,7 @@ const EncryptedAttachment = ({ url, type, alt }) => {
                 href={decryptedUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline text-blue-300 flex items-center gap-2"
+                className="underline text-[var(--c-info)] flex items-center gap-2"
             >
                 📄 View PDF (Decrypted)
             </a>
@@ -75,7 +84,7 @@ const EncryptedAttachment = ({ url, type, alt }) => {
             <a
                 href={decryptedUrl}
                 download
-                className="underline text-blue-300"
+                className="underline text-[var(--c-info)]"
             >
                 📁 Download File (Decrypted)
             </a>

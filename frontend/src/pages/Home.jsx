@@ -16,7 +16,7 @@ const Home = () => {
          ,[] )
 
   return (
-    <div className='text-2xl text-white flex ustify-center items-center '>
+    <div className='min-h-screen w-full bg-[var(--c-canvas)] text-2xl text-[var(--c-text)] flex justify-center items-center'>
         <Loader/>
     </div>
   )

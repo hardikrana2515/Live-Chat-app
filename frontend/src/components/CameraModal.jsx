@@ -81,20 +81,20 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
             {/* Close Button */}
             <button
                 onClick={onClose}
-                className="absolute top-4 right-4 p-2 bg-gray-800/50 rounded-full text-white hover:bg-gray-700/80 transition-colors z-10"
+                className="absolute top-4 right-4 p-2 bg-[var(--c-surface)]/50 rounded-full text-[var(--c-text)] hover:bg-[var(--c-raised)]/80 transition-colors z-10"
             >
                 <IoClose className="text-2xl" />
             </button>
 
             <div className="relative w-full max-w-lg aspect-[3/4] bg-black rounded-lg overflow-hidden shadow-2xl flex flex-col justify-center">
                 {error ? (
-                    <div className="text-center text-red-500 p-6">
+                    <div className="text-center text-[var(--c-danger)] p-6">
                         <p>{error}</p>
-                        <button onClick={onClose} className="mt-4 px-4 py-2 bg-gray-800 rounded-lg text-white">Close</button>
+                        <button onClick={onClose} className="mt-4 px-4 py-2 bg-[var(--c-surface)] rounded-lg text-[var(--c-text)]">Close</button>
                     </div>
                 ) : !image ? (
                     // Live Preview
@@ -110,9 +110,9 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
                         <div className="absolute bottom-6 left-0 right-0 flex justify-center">
                             <button
                                 onClick={capturePhoto}
-                                className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center bg-white/20 hover:bg-white/40 transition-all active:scale-95"
+                                className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center bg-[var(--c-surface)]/20 hover:bg-[var(--c-surface)]/40 transition-all active:scale-95"
                             >
-                                <div className="w-12 h-12 bg-white rounded-full"></div>
+                                <div className="w-12 h-12 bg-[var(--c-surface)] rounded-full"></div>
                             </button>
                         </div>
                     </>
@@ -125,9 +125,9 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
                         <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent flex justify-between items-end">
                             <button
                                 onClick={retake}
-                                className="flex flex-col items-center gap-1 text-white hover:text-gray-300 transition-colors"
+                                className="flex flex-col items-center gap-1 text-[var(--c-text)] hover:text-[var(--c-text)] transition-colors"
                             >
-                                <div className="p-3 bg-gray-700/50 rounded-full backdrop-blur-sm">
+                                <div className="p-3 bg-[var(--c-raised)]/50 rounded-full backdrop-blur-sm">
                                     <IoRefresh className="text-2xl" />
                                 </div>
                                 <span className="text-xs font-medium">Retake</span>
@@ -135,12 +135,12 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
 
                             <button
                                 onClick={handleSend}
-                                className="flex flex-col items-center gap-1 text-fuchsia-400 hover:text-fuchsia-300 transition-colors"
+                                className="flex flex-col items-center gap-1 text-[var(--c-link)] hover:text-[var(--c-link)] transition-colors"
                             >
-                                <div className="p-4 bg-fuchsia-600/90 rounded-full shadow-lg shadow-fuchsia-900/20 backdrop-blur-sm transform hover:scale-105 transition-all">
-                                    <IoSend className="text-2xl text-white ml-1" />
+                                <div className="p-4 bg-[var(--c-primary)] rounded-full shadow-lg  backdrop-blur-sm transform hover:scale-105 transition-all">
+                                    <IoSend className="text-2xl text-[var(--c-text)] ml-1" />
                                 </div>
-                                <span className="text-xs font-medium text-white">Send</span>
+                                <span className="text-xs font-medium text-[var(--c-text)]">Send</span>
                             </button>
                         </div>
                     </>

@@ -31,6 +31,12 @@ const SignUp = () => {
             return;
         }
 
+        // Mirrors the backend rule (min 8 characters) for instant feedback
+        if (credentials.password.length < 8) {
+            setError('Password must be at least 8 characters long');
+            return;
+        }
+
         setSubmitting(true);
         try {
             await signup(
@@ -52,8 +58,8 @@ const SignUp = () => {
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 w-full">
             {error && (
-                <div className="flex items-center gap-2 p-2.5 text-xs sm:text-sm text-red-200 bg-red-900/40 border border-red-500/30 rounded-xl backdrop-blur-md animate-fadeIn">
-                    <FiAlertCircle className="shrink-0 text-red-400 text-base" />
+                <div className="flex items-center gap-2 p-2.5 text-xs sm:text-sm text-[var(--c-danger)] bg-[var(--c-danger-10)] border border-[var(--c-danger-40)] rounded-xl backdrop-blur-md animate-fadeIn">
+                    <FiAlertCircle className="shrink-0 text-[var(--c-danger)] text-base" />
                     <span>{error}</span>
                 </div>
             )}
@@ -61,9 +67,9 @@ const SignUp = () => {
             {/* Name & Username Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-300">Full Name</label>
+                    <label className="text-xs font-medium text-[var(--c-text-2)]">Full Name</label>
                     <div className="relative flex items-center">
-                        <span className="absolute left-3 text-slate-500 pointer-events-none">
+                        <span className="absolute left-3 text-[var(--c-text-3)] pointer-events-none">
                             <FiUser className="text-sm" />
                         </span>
                         <input
@@ -73,15 +79,15 @@ const SignUp = () => {
                             value={credentials.name}
                             onChange={handleChange}
                             placeholder="Alex Morgan"
-                            className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                            className="w-full pl-9 pr-3 py-2 bg-[var(--c-canvas-80)] border border-[var(--c-line)] rounded-xl text-[var(--c-text)] text-xs sm:text-sm  focus:outline-none focus:border-[var(--c-primary)] focus:ring-1 focus:ring-[var(--c-primary)] transition-all"
                         />
                     </div>
                 </div>
 
                 <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-300">Username</label>
+                    <label className="text-xs font-medium text-[var(--c-text-2)]">Username</label>
                     <div className="relative flex items-center">
-                        <span className="absolute left-3 text-slate-500 pointer-events-none">
+                        <span className="absolute left-3 text-[var(--c-text-3)] pointer-events-none">
                             <FiAtSign className="text-sm" />
                         </span>
                         <input
@@ -91,7 +97,7 @@ const SignUp = () => {
                             value={credentials.username}
                             onChange={handleChange}
                             placeholder="alexmorgan"
-                            className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                            className="w-full pl-9 pr-3 py-2 bg-[var(--c-canvas-80)] border border-[var(--c-line)] rounded-xl text-[var(--c-text)] text-xs sm:text-sm  focus:outline-none focus:border-[var(--c-primary)] focus:ring-1 focus:ring-[var(--c-primary)] transition-all"
                         />
                     </div>
                 </div>
@@ -100,9 +106,9 @@ const SignUp = () => {
             {/* Email & Phone Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-300">Email Address</label>
+                    <label className="text-xs font-medium text-[var(--c-text-2)]">Email Address</label>
                     <div className="relative flex items-center">
-                        <span className="absolute left-3 text-slate-500 pointer-events-none">
+                        <span className="absolute left-3 text-[var(--c-text-3)] pointer-events-none">
                             <FiMail className="text-sm" />
                         </span>
                         <input
@@ -112,15 +118,15 @@ const SignUp = () => {
                             value={credentials.email}
                             onChange={handleChange}
                             placeholder="alex@company.com"
-                            className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                            className="w-full pl-9 pr-3 py-2 bg-[var(--c-canvas-80)] border border-[var(--c-line)] rounded-xl text-[var(--c-text)] text-xs sm:text-sm  focus:outline-none focus:border-[var(--c-primary)] focus:ring-1 focus:ring-[var(--c-primary)] transition-all"
                         />
                     </div>
                 </div>
 
                 <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-300">Phone</label>
+                    <label className="text-xs font-medium text-[var(--c-text-2)]">Phone</label>
                     <div className="relative flex items-center">
-                        <span className="absolute left-3 text-slate-500 pointer-events-none">
+                        <span className="absolute left-3 text-[var(--c-text-3)] pointer-events-none">
                             <FiPhone className="text-sm" />
                         </span>
                         <input
@@ -132,7 +138,7 @@ const SignUp = () => {
                             value={credentials.phone}
                             onChange={handleChange}
                             placeholder="10-digit number"
-                            className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                            className="w-full pl-9 pr-3 py-2 bg-[var(--c-canvas-80)] border border-[var(--c-line)] rounded-xl text-[var(--c-text)] text-xs sm:text-sm  focus:outline-none focus:border-[var(--c-primary)] focus:ring-1 focus:ring-[var(--c-primary)] transition-all"
                         />
                     </div>
                 </div>
@@ -140,13 +146,13 @@ const SignUp = () => {
 
             {/* Gender Selection */}
             <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-slate-300">Gender</label>
+                <label className="text-xs font-medium text-[var(--c-text-2)]">Gender</label>
                 <div className="grid grid-cols-2 gap-3">
                     <label
-                        className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border cursor-pointer transition-all focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 ${
+                        className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border cursor-pointer transition-all focus-within:ring-2 focus-within:ring-[var(--ring-brand)] focus-within:border-[var(--c-primary)] ${
                             credentials.gender === 'male'
-                                ? 'bg-indigo-600/20 border-indigo-500 text-white font-medium shadow-sm'
-                                : 'bg-slate-950/40 border-slate-700/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                                ? 'bg-[var(--c-primary)]/20 border-[var(--c-primary)] text-[var(--c-text)] font-medium shadow-sm'
+                                : 'bg-[var(--c-canvas-80)] border-[var(--c-line)] text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-surface)]/40'
                         }`}
                     >
                         <input
@@ -161,10 +167,10 @@ const SignUp = () => {
                     </label>
 
                     <label
-                        className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border cursor-pointer transition-all focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-indigo-500 ${
+                        className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl border cursor-pointer transition-all focus-within:ring-2 focus-within:ring-[var(--ring-brand)] focus-within:border-[var(--c-primary)] ${
                             credentials.gender === 'female'
-                                ? 'bg-indigo-600/20 border-indigo-500 text-white font-medium shadow-sm'
-                                : 'bg-slate-950/40 border-slate-700/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                                ? 'bg-[var(--c-primary)]/20 border-[var(--c-primary)] text-[var(--c-text)] font-medium shadow-sm'
+                                : 'bg-[var(--c-canvas-80)] border-[var(--c-line)] text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-surface)]/40'
                         }`}
                     >
                         <input
@@ -183,9 +189,9 @@ const SignUp = () => {
             {/* Password & Confirm Password Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-300">Password</label>
+                    <label className="text-xs font-medium text-[var(--c-text-2)]">Password</label>
                     <div className="relative flex items-center">
-                        <span className="absolute left-3 text-slate-500 pointer-events-none">
+                        <span className="absolute left-3 text-[var(--c-text-3)] pointer-events-none">
                             <FiLock className="text-sm" />
                         </span>
                         <input
@@ -196,12 +202,12 @@ const SignUp = () => {
                             value={credentials.password}
                             onChange={handleChange}
                             placeholder="••••••••"
-                            className="w-full pl-9 pr-9 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                            className="w-full pl-9 pr-9 py-2 bg-[var(--c-canvas-80)] border border-[var(--c-line)] rounded-xl text-[var(--c-text)] text-xs sm:text-sm  focus:outline-none focus:border-[var(--c-primary)] focus:ring-1 focus:ring-[var(--c-primary)] transition-all"
                         />
                         <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 text-slate-400 hover:text-slate-200 transition-colors focus:outline-none"
+                            className="absolute right-3 text-[var(--c-text-2)] hover:text-[var(--c-text)] transition-colors focus:outline-none"
                         >
                             {showPassword ? <FiEyeOff className="text-sm" /> : <FiEye className="text-sm" />}
                         </button>
@@ -209,9 +215,9 @@ const SignUp = () => {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-300">Confirm Password</label>
+                    <label className="text-xs font-medium text-[var(--c-text-2)]">Confirm Password</label>
                     <div className="relative flex items-center">
-                        <span className="absolute left-3 text-slate-500 pointer-events-none">
+                        <span className="absolute left-3 text-[var(--c-text-3)] pointer-events-none">
                             <FiLock className="text-sm" />
                         </span>
                         <input
@@ -222,7 +228,7 @@ const SignUp = () => {
                             value={credentials.cpassword}
                             onChange={handleChange}
                             placeholder="••••••••"
-                            className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                            className="w-full pl-9 pr-3 py-2 bg-[var(--c-canvas-80)] border border-[var(--c-line)] rounded-xl text-[var(--c-text)] text-xs sm:text-sm  focus:outline-none focus:border-[var(--c-primary)] focus:ring-1 focus:ring-[var(--c-primary)] transition-all"
                         />
                     </div>
                 </div>
@@ -232,7 +238,7 @@ const SignUp = () => {
             <button
                 type="submit"
                 disabled={submitting}
-                className="mt-2 w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-xl shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 transition-all duration-200 transform active:scale-[0.98] disabled:opacity-50"
+                className="mt-2 w-full py-2.5 px-4 bg-[var(--c-primary)] hover:bg-[var(--c-primary-hover)] text-[var(--c-text)] font-medium text-sm rounded-xl shadow-lg  flex items-center justify-center gap-2 transition-all duration-200 transform active:scale-[0.98] disabled:opacity-50"
             >
                 {submitting ? (
                     <span className="loading loading-spinner loading-sm" />
@@ -245,8 +251,8 @@ const SignUp = () => {
             </button>
 
             {/* Toggle Switch to Login */}
-            <div className="text-center mt-1 pt-2 border-t border-slate-800">
-                <p className="text-xs text-slate-400">
+            <div className="text-center mt-1 pt-2 border-t border-[var(--c-line)]">
+                <p className="text-xs text-[var(--c-text-2)]">
                     Already have an account?{' '}
                     <button
                         type="button"
@@ -254,7 +260,7 @@ const SignUp = () => {
                             setError('');
                             setLogin(true);
                         }}
-                        className="text-indigo-400 font-semibold hover:text-indigo-300 hover:underline transition-colors ml-1"
+                        className="text-[var(--c-link)] font-semibold hover:text-[var(--c-link)] hover:underline transition-colors ml-1"
                     >
                         Sign in
                     </button>

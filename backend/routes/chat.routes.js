@@ -4,7 +4,7 @@ import {AccessChat,fetchChat,
         CreateGroup,RenameGroup,
         addtoGroup,RemovefromGroup,
         makeAdmin,LeaveGroup,UploadGroupIcon,
-        DeleteGroup,RemoveAdmin} from "../controller/Chat.controller.js"
+        DeleteGroup,RemoveAdmin,UpdateGroupKeys} from "../controller/Chat.controller.js"
 import {body} from "express-validator"
 import upload from "../middleware/multer.js"
 
@@ -21,6 +21,7 @@ ChatRoutes.put("/removeAdmin", Auth, RemoveAdmin)
 ChatRoutes.put("/leaveGroup", Auth, LeaveGroup)
 ChatRoutes.put("/deleteGroup", Auth, DeleteGroup)
 ChatRoutes.put("/groupimage", Auth, upload.single('groupIcon'), UploadGroupIcon)
+ChatRoutes.put("/groupkey", Auth, UpdateGroupKeys)
 
 export default ChatRoutes
 

@@ -2,13 +2,18 @@ import { useContext, useState, useEffect } from 'react';
 import messageContext from '../contexts/MessageContext/messageContext';
 import chatContext from '../contexts/ChatContext/chatcontext';
 import { IoCloseSharp } from "react-icons/io5";
-import { GiEvilEyes } from "react-icons/gi";
+import { FiTrash2 } from "react-icons/fi";
 import { toast } from 'react-toastify';
 const DMsg = () => {
-    const { AllMessages, Allmsg, setAllmsg, msg, DeleteMsg, Del, setDel, setEditingMsg } = useContext(messageContext);
+    const { AllMessages, Allmsg, setAllmsg, msg, DeleteMsg, Del, setDel, setEditingMsg, delForEveryone, setDelForEveryone } = useContext(messageContext);
     const { user, selectedchat } = useContext(chatContext);
 
-    const [forevryone, setForevryone] = useState(false)
+    const [forevryone, setForevryone] = useState(delForEveryone)
+
+    const close = () => {
+        setDel(false);
+        setDelForEveryone(false);
+    };
 
     const isSender = (msg?.Sender?._id || msg?.Sender) === user?._id;
     const withinOneHour = msg?.createdAt ? (new Date() - new Date(msg.createdAt) < 60 * 60 * 1000) : false;
@@ -16,41 +21,43 @@ const DMsg = () => {
     const hendleDelete = async () => {
         try {
             await DeleteMsg(msg._id, forevryone && isSender, selectedchat?._id)
-            setDel(false)
+            close()
         } catch (e) {
             toast.error(e.message);
         }
     }
 
     return (
-        <div className="fixed inset-0 bg-transparent bg-opacity-40 backdrop-blur-md z-50 flex items-center justify-center px-4">
-            <div className="bg-white dark:bg-gray-900 text-black dark:text-white w-full max-w-md rounded-xl p-6 shadow-2xl relative transition-all duration-300 ease-in-out">
+        <div className="fixed inset-0 bg-[var(--c-overlay)] backdrop-blur-md z-50 flex items-center justify-center px-4">
+            <div className="bg-[var(--c-surface)]  text-[var(--c-text)]  w-full max-w-md rounded-xl p-6 shadow-2xl relative transition-all duration-300 ease-in-out">
 
                 {/* Close Button */}
                 <button
-                    className="absolute top-3 right-3 text-gray-500 hover:text-red-500 text-xl transition-transform hover:scale-125"
-                    onClick={() => setDel(false)}
+                    className="absolute top-3 right-3 text-[var(--c-text-3)] hover:text-[var(--c-danger)] text-xl transition-transform hover:scale-125"
+                    onClick={close}
                 >
                     <IoCloseSharp />
                 </button>
 
                 {/* Icon */}
-                <div className="text-6xl p-3 flex justify-center items-center text-center mb-2 dark:text-green-400 text-fuchsia-600">
-                    <GiEvilEyes />
+                <div className="flex justify-center mb-4">
+                    <span className="w-16 h-16 rounded-full bg-[var(--c-danger-10)] border border-[var(--c-danger-40)] flex items-center justify-center text-[var(--c-danger)]">
+                        <FiTrash2 className="text-3xl" />
+                    </span>
                 </div>
 
                 {/* Title */}
-                <h1 className="text-2xl font-bold text-center text-fuchsia-700 dark:text-fuchsia-400 mb-4">
-                    Are you sure you want to delete this message?
+                <h1 className="text-2xl font-bold text-center text-[var(--c-text)]  mb-4">
+                    {forevryone ? "Delete for everyone?" : "Delete this message?"}
                 </h1>
 
                 {/* Checkbox Row */}
                 {isSender && withinOneHour && (
                     <div className="flex items-center justify-center gap-3 mb-6">
-                        <label className="text-gray-700 dark:text-gray-300 text-sm flex items-center gap-2 cursor-pointer">
+                        <label className="text-[var(--c-text-2)]  text-sm flex items-center gap-2 cursor-pointer">
                             <input
                                 type="checkbox"
-                                className="accent-fuchsia-600 size-4"
+                                className="accent-[var(--c-primary)] size-4"
                                 checked={forevryone}
                                 onChange={() => setForevryone(!forevryone)}
                             />
@@ -63,24 +70,24 @@ const DMsg = () => {
                 <div className="flex flex-col sm:flex-row justify-center items-center gap-3">
                     <button
                         onClick={hendleDelete}
-                        className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-medium px-5 py-2 rounded-full shadow-md transition-all duration-200"
+                        className="w-full sm:w-auto bg-[var(--c-danger)] hover:brightness-110 text-white font-medium px-5 py-2 rounded-full shadow-md transition-all duration-200"
                     >
                         Delete
                     </button>
-                    {isSender && !msg?.isDeleted && msg?.message && !msg?.message?.includes("[CONTACT_CARD]:::") && (
+                    {isSender && withinOneHour && !msg?.isDeleted && msg?.message && !msg?.message?.includes("[CONTACT_CARD]:::") && (
                         <button
                             onClick={() => {
-                                setDel(false);
+                                close();
                                 if (setEditingMsg) setEditingMsg(msg);
                             }}
-                            className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2 rounded-full shadow-md transition-all duration-200"
+                            className="w-full sm:w-auto bg-[var(--c-primary)] hover:brightness-110 text-white font-medium px-5 py-2 rounded-full shadow-md transition-all duration-200"
                         >
                             Edit Instead
                         </button>
                     )}
                     <button
-                        onClick={() => setDel(false)}
-                        className="w-full sm:w-auto bg-gray-300 hover:bg-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 text-black dark:text-white font-medium px-5 py-2 rounded-full shadow-md transition-all duration-200"
+                        onClick={close}
+                        className="w-full sm:w-auto bg-[var(--c-raised)] hover:bg-[var(--c-hover)]  text-[var(--c-text)]  font-medium px-5 py-2 rounded-full shadow-md transition-all duration-200"
                     >
                         Cancel
                     </button>

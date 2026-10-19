@@ -2,34 +2,38 @@ import { IoDocumentText, IoCamera, IoImage, IoPerson, IoMusicalNotes } from "rea
 import { MdPoll } from "react-icons/md";
 
 const AttachmentMenu = ({ onOptionClick }) => {
+    // Each option gets its own hue (tinted circle + colored icon) so they are
+    // instantly distinguishable and stay high-contrast in both themes.
     const options = [
-        { id: 'poll', label: 'Poll', icon: <MdPoll className="text-xl" />, color: 'bg-teal-500' },
-        { id: 'contact', label: 'Contact', icon: <IoPerson className="text-xl" />, color: 'bg-blue-500' },
-        { id: 'document', label: 'Document', icon: <IoDocumentText className="text-xl" />, color: 'bg-indigo-500' },
-        { id: 'camera', label: 'Camera', icon: <IoCamera className="text-xl" />, color: 'bg-pink-500' },
-        { id: 'gallery', label: 'Photos & Videos', icon: <IoImage className="text-xl" />, color: 'bg-purple-500' },
-        { id: 'audio', label: 'Audio', icon: <IoMusicalNotes className="text-xl" />, color: 'bg-orange-500' },
+        { id: 'document', label: 'Document', icon: <IoDocumentText className="text-lg" />, color: 'bg-[var(--c-primary)]/15 text-[var(--c-primary)] ring-1 ring-inset ring-[var(--c-primary)]/30' },
+        { id: 'gallery', label: 'Photos & Videos', icon: <IoImage className="text-lg" />, color: 'bg-[var(--c-accent)]/15 text-[var(--c-accent)] ring-1 ring-inset ring-[var(--c-accent)]/30' },
+        { id: 'camera', label: 'Camera', icon: <IoCamera className="text-lg" />, color: 'bg-[var(--c-danger)]/15 text-[var(--c-danger)] ring-1 ring-inset ring-[var(--c-danger)]/30' },
+        { id: 'audio', label: 'Audio', icon: <IoMusicalNotes className="text-lg" />, color: 'bg-[var(--c-info)]/15 text-[var(--c-info)] ring-1 ring-inset ring-[var(--c-info)]/30' },
+        { id: 'poll', label: 'Poll', icon: <MdPoll className="text-lg" />, color: 'bg-[var(--c-warning)]/15 text-[var(--c-warning)] ring-1 ring-inset ring-[var(--c-warning)]/30' },
+        { id: 'contact', label: 'Contact', icon: <IoPerson className="text-lg" />, color: 'bg-[var(--c-online)]/15 text-[var(--c-online)] ring-1 ring-inset ring-[var(--c-online)]/30' },
     ];
 
-    // Show in reverse order (bottom to top) to mimic WhatsApp stack
+    // WhatsApp-style popup: a themed panel anchored above the paperclip,
+    // opening leftward (right-aligned) so it never overflows the screen.
     return (
-        <div className="absolute bottom-16 left-4 flex flex-col gap-4 animate-in slide-in-from-bottom-5 fade-in duration-200 z-50">
+        <div className="absolute bottom-14 right-0 z-50 w-56 p-2 rounded-2xl border border-[var(--c-line)] bg-[var(--c-panel)] shadow-2xl animate-fadeIn overflow-hidden">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--c-text-3)] px-3 pt-1 pb-1.5">
+                Share
+            </p>
             {options.map((opt) => (
-                <div
+                <button
                     key={opt.id}
-                    className="flex items-center gap-4 cursor-pointer group"
+                    type="button"
                     onClick={() => onOptionClick(opt.id)}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-[var(--c-hover)] focus:outline-none focus:bg-[var(--c-hover)] transition-colors text-left"
                 >
-                    {/* Label (Tooltip style) */}
-                    {/* <span className="bg-gray-700 text-white text-sm py-1 px-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                        {opt.label}
-                    </span> */}
-
-                    {/* Icon Bubble */}
-                    <div className={`${opt.color} p-3 rounded-full text-white shadow-lg hover:scale-110 transition-transform`}>
+                    <span className={`${opt.color} p-2 rounded-full shrink-0`}>
                         {opt.icon}
-                    </div>
-                </div>
+                    </span>
+                    <span className="text-sm font-medium text-[var(--c-text)] truncate">
+                        {opt.label}
+                    </span>
+                </button>
             ))}
         </div>
     );

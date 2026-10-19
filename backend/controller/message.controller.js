@@ -1,4 +1,5 @@
 
+import mongoose from "mongoose";
 import Message from "../models/Message.model.js";
 import ChatRoom from "../models/Chatroom.model.js";
 import User from "../models/user.model.js";
@@ -26,6 +27,13 @@ const sendMessage = AsyncHandler(async (req, res) => {
     return res.status(404).json(new ApiResponse(404, null, "Chat not found"));
   }
 
+  // Only current chat members may post (a removed member must not be able
+  // to keep writing — or reading — ciphertext for a chat they left)
+  const isMember = (Chat.members || []).some((m) => m.toString() === userId.toString());
+  if (!isMember) {
+    return res.status(403).json(new ApiResponse(403, null, "You are not a member of this chat"));
+  }
+
   // Blocking Check
   if (!Chat.isGroup) {
     const recipientId = Chat.members.find((member) => member.toString() !== userId.toString());
@@ -34,10 +42,14 @@ const sendMessage = AsyncHandler(async (req, res) => {
       const sender = await User.findById(userId); // Ensure we have latest blockedUsers
 
       if (recipient && sender) {
-        if (recipient.blockedUsers.includes(userId)) {
+        // ObjectId arrays must be compared by string, not with .includes()
+        // (a distinct ObjectId instance never === another one). (Issue E3)
+        const isBlockedByRecipient = recipient.blockedUsers.some((id) => String(id) === String(userId));
+        const hasBlockedRecipient = sender.blockedUsers.some((id) => String(id) === String(recipientId));
+        if (isBlockedByRecipient) {
           return res.status(403).json(new ApiResponse(403, null, "You have been blocked by this user."));
         }
-        if (sender.blockedUsers.includes(recipientId)) {
+        if (hasBlockedRecipient) {
           return res.status(403).json(new ApiResponse(403, null, "You have blocked this user. Unblock to send messages."));
         }
       }
@@ -94,7 +106,7 @@ const sendMessage = AsyncHandler(async (req, res) => {
 });
 
 const allMessages = AsyncHandler(async (req, res) => {
-  const { chatId } = req.body;
+  const { chatId, limit, before } = req.body;
 
   if (!chatId) {
     // throw new ApiError(400, "chatId  is required.");
@@ -103,7 +115,29 @@ const allMessages = AsyncHandler(async (req, res) => {
       .json(new ApiResponse(401, null, "ChatId is required"));
   }
 
-  const messages = await Message.find({ chatId })
+  // Membership gate: removed/left members must not be able to pull ciphertext
+  // for chats they no longer belong to (pairs with E2EE, Issue 3.2).
+  const chat = await ChatRoom.findById(chatId).select("members");
+  if (!chat) {
+    return res.status(404).json(new ApiResponse(404, null, "Chat not found"));
+  }
+  const isMember = (chat.members || []).some((m) => m.toString() === req.user._id.toString());
+  if (!isMember) {
+    return res.status(403).json(new ApiResponse(403, null, "You are not a member of this chat"));
+  }
+
+  // Cursor pagination: return the newest `limit` messages (default 50).
+  // Passing `before` (a message id) returns the page older than that message. (Issue 3.4)
+  const pageSize = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
+  const query = { chatId };
+  if (before && mongoose.isValidObjectId(before)) {
+    query._id = { $lt: before };
+  }
+
+  // Fetch one extra row to know whether an older page exists
+  const rows = await Message.find(query)
+    .sort({ _id: -1 })
+    .limit(pageSize + 1)
     .populate("Sender", "name avtar email")
     .populate({
       path: "chatId",
@@ -113,13 +147,13 @@ const allMessages = AsyncHandler(async (req, res) => {
       },
     });
 
-  if (!messages || messages.length === 0) {
-    return res.status(200).json(new ApiResponse(200, [], "No messages found."));
-  }
+  const hasMore = rows.length > pageSize;
+  const page = hasMore ? rows.slice(0, pageSize) : rows;
+  page.reverse(); // chronological order for the client
 
   return res
     .status(200)
-    .json(new ApiResponse(200, messages, "All messages fetched!!"));
+    .json(new ApiResponse(200, { messages: page, hasMore }, "Messages fetched!!"));
 });
 
 const deleteMessage = AsyncHandler(async (req, res) => {
@@ -143,8 +177,11 @@ const deleteMessage = AsyncHandler(async (req, res) => {
   }
 
   const isSender = message.Sender.toString() === req.user._id.toString();
+  // Server clock is authoritative. A 5-minute grace window absorbs small
+  // client/server clock drift so borderline deletes aren't rejected. (Issue E1)
+  const DELETE_GRACE_MS = 5 * 60 * 1000;
   const withinOneHour =
-    new Date() - new Date(message.createdAt) < 60 * 60 * 1000;
+    new Date() - new Date(message.createdAt) < 60 * 60 * 1000 + DELETE_GRACE_MS;
 
   if (isSender && forEveryone) {
     if (!withinOneHour) {
@@ -175,7 +212,8 @@ const deleteMessage = AsyncHandler(async (req, res) => {
   if (!Array.isArray(message.deletedFor)) {
     message.deletedFor = [];
   }
-  if (!message.deletedFor.includes(userId)) {
+  // Compare by string: ObjectId .includes(userId) never matches a distinct instance
+  if (!message.deletedFor.some((id) => String(id) === String(userId))) {
     message.deletedFor.push(userId);
     await message.save();
   }
@@ -186,18 +224,35 @@ const deleteMessage = AsyncHandler(async (req, res) => {
 });
 
 const markAsRead = AsyncHandler(async (req, res) => {
-  const { messageId } = req.body;
+  const { messageId, messageIds } = req.body;
   const userId = req.user._id;
+
+  if (Array.isArray(messageIds) && messageIds.length > 0) {
+    await Message.updateMany(
+      { _id: { $in: messageIds }, readBy: { $ne: userId } },
+      { $addToSet: { readBy: userId } }
+    );
+    return res
+      .status(200)
+      .json(new ApiResponse(200, { messageIds, readerId: userId }, "Messages marked as read."));
+  }
+
+  if (!messageId) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "messageId or messageIds is required"));
+  }
+
   const message = await Message.findById(messageId);
 
   if (!message) {
-    // throw new ApiError(404, "Message not found.");
     return res
       .status(404)
       .json(new ApiResponse(404, null, "Message not found"));
   }
 
-  if (!message.readBy.includes(userId)) {
+  // Compare by string: ObjectId .includes(userId) never matches a distinct instance
+  if (!message.readBy.some((id) => String(id) === String(userId))) {
     message.readBy.push(userId);
     await message.save();
   }
@@ -261,24 +316,24 @@ const votePoll = AsyncHandler(async (req, res) => {
   // Remove user vote from all options (Single choice poll for now, or toggle)
   // Let's implement toggle: If already voted for this option, remove. If passed different option, switch.
 
-  // 1. Remove existing vote from any option
-  message.poll.options.forEach(opt => {
-    const index = opt.votes.indexOf(userId);
+  // Remove the user's existing vote from ALL options first.
+  // NOTE: votes hold Mongoose ObjectId instances, so indexOf (===) never
+  // matches a distinct ObjectId — compare by string instead. (Issue 1.3)
+  const hasVotedInOption = (opt) =>
+    (opt.votes || []).some((v) => String(v?._id ?? v) === String(userId));
+
+  const alreadyVotedHere = hasVotedInOption(message.poll.options[optionIndex] || {});
+
+  message.poll.options.forEach((opt) => {
+    const index = (opt.votes || []).findIndex((v) => String(v?._id ?? v) === String(userId));
     if (index > -1) {
       opt.votes.splice(index, 1);
     }
   });
 
-  // 2. Add new vote if valid index sent (if index is null/undefined = just remove vote, but logic assumes index sent)
-  // Actually, typical UI: Click option -> Toggle.
-  // Let's assume input is "I want to vote for Option X". 
-  // If I already voted for Option X, remove it. If I voted for Y, remove Y and add X.
-
-  // Since we cleared all above (which is safer for single-choice), we just add to the new one.
-  // Wait, if I simply want to "unvote" by clicking again, the UI might send a specific flag or we check before clearing.
-  // For simplicity: Always switch to the selected option.
-
-  if (optionIndex >= 0 && optionIndex < message.poll.options.length) {
+  // Toggle: clicking the option you already voted for removes your vote;
+  // clicking a different option switches your vote to it.
+  if (!alreadyVotedHere && optionIndex >= 0 && optionIndex < message.poll.options.length) {
     message.poll.options[optionIndex].votes.push(userId);
   }
 

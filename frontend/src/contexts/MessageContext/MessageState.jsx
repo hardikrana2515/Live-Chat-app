@@ -5,14 +5,20 @@ import { useNavigate } from "react-router-dom"
 import API from '../Api.js'
 import { toast } from 'react-toastify'
 import SocketContext from '../Socket.io.Context/socket.Context.js'
+import userContext from '../UserContext/userContext.js'
 import { encryptMessage } from '../../utils/EncryptionUtils.js'
+import { ensureChatKey } from '../../utils/cryptoKeys.js'
 
 const MessageState = ({ children }) => {
 
     const [msg, setMsg] = useState({})
-    const [user, setUser] = useState({})
+    // Single source of truth: the user lives in UserState (Issue 3.1)
+    const { user } = useContext(userContext)
     const [Allmsg, setAllmsg] = useState([])
+    const [hasMore, setHasMore] = useState(false)
+    const [loadingOlder, setLoadingOlder] = useState(false)
     const [Del, setDel] = useState(false)
+    const [delForEveryone, setDelForEveryone] = useState(false)
     const [editingMsg, setEditingMsg] = useState(null)
     const navigate = useNavigate()
     const { socket } = useContext(SocketContext)
@@ -21,11 +27,18 @@ const MessageState = ({ children }) => {
 
     useEffect(() => {
         const userinfo = JSON.parse(localStorage.getItem("userInfo"))
-        setUser(userinfo)
         if (!userinfo) {
             navigate("/login")
         }
     }, [])
+
+    // Clear loaded messages whenever the logged-in user changes (logout /
+    // account switch) so the next account never sees stale messages (Issue 5.3)
+    const userId = user?._id
+    useEffect(() => {
+        setAllmsg([])
+        setMsg({})
+    }, [userId])
 
     const Send = async (message, media, chatId, poll = null) => {
 
@@ -60,19 +73,54 @@ const MessageState = ({ children }) => {
     const AllMessages = async (chatId) => {
 
         try {
-            const res = await API.post("message/allmessages", { chatId }, {
+            // Resolve the conversation's E2EE key first so messages decrypt
+            // as soon as they land in state (Issue 3.2)
+            try { await ensureChatKey(chatId); } catch { /* legacy fallback */ }
+
+            const res = await API.post("message/allmessages", { chatId, limit: 50 }, {
                 headers: {
                     "Content-Type": "application/json"
                 },
                 withCredentials: true
             })
-            // console.log(res.data.data)
-            setAllmsg(res.data.data)
+            const { messages = [], hasMore: more = false } = res.data.data || {};
+            setAllmsg(messages)
+            setHasMore(more)
+            // Keep the "has messages" flag in sync with the opened chat,
+            // otherwise an empty chat renders without its placeholder.
+            setMsg(messages.length ? messages[messages.length - 1] : null)
         } catch (e) {
             const errorMessage = e?.response?.data?.message || "Failed to fetch messages"
             throw new Error(errorMessage)
         }
 
+    }
+
+    // Fetch the page of messages older than the current oldest one (Issue 3.4)
+    const LoadOlderMessages = async (chatId) => {
+        if (!chatId || !Allmsg.length || loadingOlder || !hasMore) return;
+        const before = Allmsg[0]._id;
+        setLoadingOlder(true);
+        try {
+            const res = await API.post("message/allmessages", { chatId, before, limit: 50 }, {
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                withCredentials: true
+            })
+            const { messages = [], hasMore: more = false } = res.data.data || {};
+            setHasMore(more);
+            setAllmsg(prev => {
+                const seen = new Set(prev.map(m => m._id));
+                const older = messages.filter(m => !seen.has(m._id));
+                return [...older, ...prev];
+            });
+        } catch (e) {
+            const errorMessage = e?.response?.data?.message || "Failed to load older messages"
+            toast.error(errorMessage);
+        } finally {
+            setLoadingOlder(false);
+        }
     }
 
     const DeleteMsg = async (messageId, forEveryone, chatId) => {
@@ -102,21 +150,46 @@ const MessageState = ({ children }) => {
         }
     }
 
-    const ReadBy = async (messageId) => {
+    const ReadBy = async (messageIdOrIds, chatId) => {
         try {
-            const res = await API.put("message/markread", { messageId }, {
+            const isBatch = Array.isArray(messageIdOrIds);
+            const body = isBatch ? { messageIds: messageIdOrIds } : { messageId: messageIdOrIds };
+            const res = await API.put("message/markread", body, {
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: user.token
                 },
                 withCredentials: true
-            })
-            return res.data.data;
+            });
+            const data = res.data.data;
+            const myId = user._id;
+
+            // Update local state
+            setAllmsg(prev => prev.map(m => {
+                const isTarget = isBatch ? messageIdOrIds.includes(m._id) : m._id === messageIdOrIds;
+                if (isTarget) {
+                    const existing = m.readBy || [];
+                    if (!existing.some(id => String(id?._id ?? id) === String(myId))) {
+                        return { ...m, readBy: [...existing, myId] };
+                    }
+                }
+                return m;
+            }));
+
+            // Emit live socket event to notify other participants immediately
+            if (socket.current) {
+                socket.current.emit("messages read", {
+                    messageIds: isBatch ? messageIdOrIds : [messageIdOrIds],
+                    readerId: myId,
+                    chatId
+                });
+            }
+            return data;
         } catch (e) {
             const errorMessage = e?.response?.data?.message || "Failed to mark message as read";
             console.error(errorMessage);
         }
-    }
+    };
 
     const ReactToMsg = async (messageId, emoji) => {
         try {
@@ -167,7 +240,7 @@ const MessageState = ({ children }) => {
 
     const EditMsg = async (messageId, newContent, chatId) => {
         try {
-            const encryptedMessage = encryptMessage(newContent);
+            const encryptedMessage = await encryptMessage(newContent, chatId);
             const res = await API.put("message/editMessage", { messageId, message: encryptedMessage }, {
                 headers: {
                     "Content-Type": "application/json",
@@ -195,7 +268,8 @@ const MessageState = ({ children }) => {
         <messageContext.Provider value={{
             Send, msg, setMsg, AllMessages, setAllmsg, Allmsg,
             DeleteMsg, Del, setDel, ReadBy, ENDPOINT, ReactToMsg, VotePoll, EditMsg,
-            editingMsg, setEditingMsg
+            editingMsg, setEditingMsg, delForEveryone, setDelForEveryone,
+            hasMore, LoadOlderMessages, loadingOlder
         }}>
             {children}
         </messageContext.Provider>

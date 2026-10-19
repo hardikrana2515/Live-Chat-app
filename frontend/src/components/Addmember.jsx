@@ -1,6 +1,5 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, useRef } from "react";
 import chatContext from "../contexts/ChatContext/chatcontext";
-import userContext from "../contexts/UserContext/userContext";
 import { IoCloseSharp } from "react-icons/io5";
 import { FaSearch } from "react-icons/fa";
 import { MdOutlineArrowBack } from "react-icons/md";
@@ -13,6 +12,7 @@ const Addmember = () => {
         setSelectedchat,
         setAddmodal,
         GroupUsersearch,
+        GLoading,
         setGLoading,
         setGSearchUser, AddinGroup,
         GsearchUser, Allchat
@@ -20,18 +20,44 @@ const Addmember = () => {
 
     const [search, setSearch] = useState("");
     const [selectedMembers, setSelectedMembers] = useState([]);
+    const [hasSearched, setHasSearched] = useState(false);
+    const debounceRef = useRef(null);
 
-    const { loading } = useContext(userContext);
+    // Live search: results appear as you type (debounced), no submit needed
+    useEffect(() => {
+        const q = search.trim();
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+
+        if (!q) {
+            setGSearchUser([]);
+            setHasSearched(false);
+            return;
+        }
+
+        debounceRef.current = setTimeout(async () => {
+            try {
+                await GroupUsersearch(q, true); // silent: no toast while typing
+                setHasSearched(true);
+            } catch (e) {
+                toast.error(e.message);
+            }
+        }, 350);
+
+        return () => clearTimeout(debounceRef.current);
+    }, [search]);
+
+    // Clear search state when the modal unmounts
+    useEffect(() => () => { setGSearchUser([]); setGLoading(false); }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setGLoading(true);
+        if (!search.trim()) return;
+        if (debounceRef.current) clearTimeout(debounceRef.current);
         try {
             await GroupUsersearch(search.trim());
+            setHasSearched(true);
         } catch (e) {
             toast.error(e.message);
-        } finally {
-            setGLoading(false);
         }
     };
 
@@ -52,9 +78,10 @@ const Addmember = () => {
     };
 
     const handleAddmem = async () => {
-        const memberIds = selectedMembers.map((m) => m._id);
         try {
-            const res = await AddinGroup(memberIds, selectedchat._id);
+            // Pass full member objects (with publicKey) so the group key can
+            // be wrapped for them before they are added (Issue 3.2)
+            const res = await AddinGroup(selectedMembers, selectedchat._id);
 
             setSelectedchat(res);
             await Allchat();
@@ -65,39 +92,46 @@ const Addmember = () => {
         }
     };
 
+    // Don't offer people who are already in the group or yourself
+    const results = GsearchUser.filter(
+        (u) => u._id !== selectedchat?.creator &&
+            !selectedchat?.members?.some((member) => member._id === u._id)
+    );
+
     return (
-        <div className="fixed inset-0 bg-opacity-10 flex items-center justify-center z-50 backdrop-blur-xl px-4 transition-all duration-300 ease-in-out">
-            <div className="bg-white dark:bg-gray-900 text-black dark:text-white w-full max-w-lg rounded-2xl p-6 relative shadow-2xl animate-fadeIn border border-gray-300 dark:border-gray-700">
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-[var(--c-overlay)] backdrop-blur-md px-4 transition-all duration-300 ease-in-out">
+            <div className="bg-[var(--c-surface)]  text-[var(--c-text)]  w-full max-w-lg rounded-2xl p-6 relative shadow-2xl animate-fadeIn border border-[var(--c-line)] ">
 
                 {/* Title + Close */}
-                <h2 className="text-xl font-semibold text-center mb-4 text-fuchsia-600 dark:text-fuchsia-400">
+                <h2 className="text-xl font-semibold text-center mb-4 text-[var(--c-text)] ">
                     Add Member
                 </h2>
                 <button
-                    className="absolute top-3 right-3 text-2xl text-gray-400 hover:text-red-500 transition-transform hover:scale-110"
+                    className="absolute top-3 right-3 text-2xl text-[var(--c-text-2)] hover:text-[var(--c-danger)] transition-transform hover:scale-110"
                     onClick={() => setAddmodal(false)}
                 >
                     <IoCloseSharp />
                 </button>
 
-                {/* Search Form */}
+                {/* Live Search Form */}
                 <form
                     onSubmit={handleSubmit}
-                    className="flex items-center bg-transparent backdrop-blur-2xl border-2 rounded-full border-amber-100 px-3 py-2 w-full"
+                    className="flex items-center bg-transparent backdrop-blur-2xl border-2 rounded-full border-[var(--c-line)] px-3 py-2 w-full focus-within:border-[var(--c-primary)] transition-colors"
                 >
                     <input
                         type="text"
                         value={search}
                         onChange={handleChange}
-                        className="flex-grow bg-transparent outline-none text-white placeholder:text-gray-300 text-sm px-2"
+                        className="flex-grow bg-transparent border-none outline-none focus:outline-none focus:border-none focus:ring-0 focus-visible:outline-none shadow-none text-[var(--c-text)] text-sm px-2 ring-0"
                         placeholder="Search users..."
+                        autoFocus
                     />
                     <button
                         type="submit"
-                        disabled={search.length === 0}
-                        className="btn btn-circle bg-gray-400 text-white ml-2"
+                        disabled={search.length === 0 || GLoading}
+                        className="btn btn-circle bg-[var(--c-primary)] text-white ml-2 disabled:opacity-40"
                     >
-                        {loading ? (
+                        {GLoading ? (
                             <span className="loading loading-spinner loading-sm" />
                         ) : (
                             <FaSearch />
@@ -105,22 +139,31 @@ const Addmember = () => {
                     </button>
                     {GsearchUser.length > 0 && (
                         <MdOutlineArrowBack
-                            onClick={() => setGSearchUser([])}
-                            className="text-white ml-3 rounded-full h-8 w-8 p-1.5 cursor-pointer text-xl hover:bg-fuchsia-400 transition"
+                            onClick={() => { setGSearchUser([]); setSearch(""); setHasSearched(false); }}
+                            className="text-[var(--c-text)] ml-3 rounded-full h-8 w-8 p-1.5 cursor-pointer text-xl hover:bg-[var(--c-primary)] transition"
                         />
                     )}
                 </form>
 
-                {/* Search Results */}
+                {/* Search Results (live) */}
                 <div className="flex flex-col gap-2 mt-4 overflow-y-auto max-h-60 pr-1 custom-scrollbar">
-                    {GsearchUser.length > 0 &&
-                        GsearchUser.filter(
-                            (u) => !selectedchat?.members?.some((member) => member._id === u._id)
-                        ).map((u) => (
+                    {GLoading && (
+                        <div className="flex justify-center py-6">
+                            <span className="loading loading-spinner loading-md text-[var(--c-primary)]" />
+                        </div>
+                    )}
+
+                    {!GLoading && hasSearched && results.length === 0 && (
+                        <p className="text-center text-sm text-[var(--c-text-3)] py-6">
+                            No users found. Try a different name, username, or email.
+                        </p>
+                    )}
+
+                    {!GLoading && results.map((u) => (
                             <div
                                 key={u._id}
                                 onClick={() => handleSelectUser(u)}
-                                className="flex items-center w-full gap-4 p-2 rounded-md hover:bg-gray-800 cursor-pointer transition-all duration-200"
+                                className="flex items-center w-full gap-4 p-2 rounded-md hover:bg-[var(--c-surface)] cursor-pointer transition-all duration-200"
                             >
                                 <img
                                     src={
@@ -132,8 +175,8 @@ const Addmember = () => {
                                     className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover"
                                 />
                                 <div className="flex flex-col justify-center overflow-hidden">
-                                    <h3 className="text-white font-medium truncate text-sm">{u.name}</h3>
-                                    <span className="text-gray-400 text-xs">@{u.userName}</span>
+                                    <h3 className="text-[var(--c-text)] font-medium truncate text-sm">{u.name}</h3>
+                                    <span className="text-[var(--c-text-2)] text-xs">@{u.userName}</span>
                                 </div>
                             </div>
                         ))}
@@ -141,13 +184,13 @@ const Addmember = () => {
 
                 {/* Selected Members */}
                 {selectedMembers.length > 0 && (
-                    <div className="mt-4 p-2 rounded-md bg-gray-700 text-white">
+                    <div className="mt-4 p-2 rounded-md bg-[var(--c-raised)] text-[var(--c-text)]">
                         <h4 className="mb-2 font-semibold">Selected Members:</h4>
                         <div className="flex flex-wrap gap-2 p-2">
                             {selectedMembers.map((u) => (
                                 <div
                                     key={u._id}
-                                    className="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded-md"
+                                    className="flex items-center gap-2 px-3 py-1 bg-[var(--c-surface)] rounded-md"
                                 >
                                     <img
                                         src={
@@ -161,7 +204,7 @@ const Addmember = () => {
                                     <span className="text-sm">{u.name}</span>
                                     <button
                                         onClick={() => handleRemoveUser(u._id)}
-                                        className="text-red-500 hover:text-red-700 ml-1"
+                                        className="text-[var(--c-danger)] hover:text-[var(--c-danger)] ml-1"
                                     >
                                         <IoCloseSharp />
                                     </button>
@@ -176,8 +219,8 @@ const Addmember = () => {
                     disabled={selectedMembers.length < 1}
                     onClick={handleAddmem}
                     className={`flex w-full py-2 mt-4 items-center justify-center rounded-md font-medium transition ${selectedMembers.length < 1
-                            ? 'bg-fuchsia-400 opacity-50 cursor-not-allowed text-white'
-                            : 'bg-fuchsia-600 text-white hover:bg-fuchsia-700'
+                            ? 'bg-[var(--c-primary)] opacity-50 cursor-not-allowed text-[var(--c-text)]'
+                            : 'bg-[var(--c-primary)] text-[var(--c-text)] hover:brightness-110'
                         }`}
                 >
                     <IoMdAdd className="mr-2" />

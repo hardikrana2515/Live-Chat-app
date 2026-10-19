@@ -1,5 +1,4 @@
 
-import './App.css'
 import { Routes, Route } from 'react-router-dom'
 import Home from './pages/Home'
 import { ToastContainer } from "react-toastify";
@@ -23,7 +22,16 @@ function App() {
       <SocketStates ENDPOINT="http://localhost:4000">
         <ChatState>
           <MessageState>
-            <ToastContainer />
+            <ToastContainer
+              position="bottom-center"
+              theme="dark"
+              autoClose={2500}
+              hideProgressBar={false}
+              newestOnTop
+              closeOnClick
+              pauseOnHover
+              toastClassName="!bg-[var(--c-surface)] !text-[var(--c-text)] !border !border-[var(--c-border)] !rounded-xl !shadow-xl"
+            />
             <div className="app ">
               <Routes>
                 <Route path="/" element={<ProtectedRoute Component={Home} />} />

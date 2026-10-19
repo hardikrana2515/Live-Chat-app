@@ -6,6 +6,8 @@ import userContext from '../UserContext/userContext';
 const SocketStates = ({ children, ENDPOINT }) => {
     const socket = useRef();
     const [onlineUsers, setOnlineUsers] = useState([]);
+    const [isConnected, setIsConnected] = useState(false);
+    const [socketInstance, setSocketInstance] = useState(null);
     const { user } = useContext(userContext);
     const prevUserIdRef = useRef(null);
 
@@ -25,6 +27,8 @@ const SocketStates = ({ children, ENDPOINT }) => {
                 socket.current = null;
             }
             prevUserIdRef.current = null;
+            setIsConnected(false);
+            setSocketInstance(null);
             return;
         }
 
@@ -34,18 +38,29 @@ const SocketStates = ({ children, ENDPOINT }) => {
         if (socket.current && isUserChanged) {
             socket.current.disconnect();
             socket.current = null;
+            setIsConnected(false);
+            setSocketInstance(null);
         }
 
         if (!socket.current) {
-            socket.current = io(ENDPOINT, {
+            const s = io(ENDPOINT, {
                 transports: ['websocket'],
                 withCredentials: true
             });
+            socket.current = s;
+            setSocketInstance(s);
 
-            socket.current.on("connect", () => {
-                socket.current.emit("setup", userinfo);
+            s.on("connect", () => {
+                setIsConnected(true);
+                s.emit("setup", userinfo);
+            });
+
+            s.on("disconnect", () => {
+                setIsConnected(false);
             });
         } else if (socket.current.connected) {
+            setIsConnected(true);
+            setSocketInstance(socket.current);
             socket.current.emit("setup", userinfo);
         }
 
@@ -64,7 +79,7 @@ const SocketStates = ({ children, ENDPOINT }) => {
     }, [user, ENDPOINT]);
 
     return (
-        <SocketContext.Provider value={{ socket, onlineUsers }}>
+        <SocketContext.Provider value={{ socket, onlineUsers, isConnected, socketInstance }}>
             {children}
         </SocketContext.Provider>
     )

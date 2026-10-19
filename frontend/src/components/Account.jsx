@@ -124,12 +124,12 @@ const Account = () => {
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md px-4 py-6 transition-all duration-300">
-      <div className="bg-slate-900 border border-slate-800 text-white w-full max-w-lg rounded-3xl p-6 relative shadow-2xl shadow-slate-950/90 animate-fadeIn flex flex-col max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--c-overlay)] backdrop-blur-md px-4 py-6 transition-all duration-300">
+      <div className="bg-[var(--c-panel)] border border-[var(--c-line)] text-[var(--c-text)] w-full max-w-lg rounded-3xl p-6 relative shadow-2xl  animate-fadeIn flex flex-col max-h-[90vh] overflow-hidden">
         
         {/* Close Button */}
         <button
-          className="absolute top-4 right-4 p-1.5 rounded-xl bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 transition"
+          className="absolute top-4 right-4 p-1.5 rounded-xl bg-[var(--c-surface-80)] text-[var(--c-text-2)] hover:text-[var(--c-text)] hover:bg-[var(--c-raised)] transition"
           onClick={() => setCard(false)}
           title="Close"
         >
@@ -137,29 +137,29 @@ const Account = () => {
         </button>
 
         {/* Header & Tabs */}
-        <div className="border-b border-slate-800 pb-4 mb-4">
+        <div className="border-b border-[var(--c-line)] pb-4 mb-4">
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="p-2 rounded-xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-400">
+            <div className="p-2 rounded-xl bg-[var(--c-primary)]/10 border border-[var(--c-line)] text-[var(--c-link)]">
               <FiUser className="text-lg" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white tracking-tight leading-tight">
+              <h2 className="text-lg font-bold text-[var(--c-text)] tracking-tight leading-tight">
                 Account & Preferences
               </h2>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-[var(--c-text-2)]">
                 Manage your profile identity, security, and workspace settings
               </span>
             </div>
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex bg-slate-950/60 p-1 rounded-xl border border-slate-800/80">
+          <div className="flex bg-[var(--c-canvas)]/60 p-1 rounded-xl border border-[var(--c-line-50)]">
             <button
               onClick={() => setActiveTab('profile')}
               className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${
                 activeTab === 'profile'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-[var(--c-primary)] text-[var(--c-text)] shadow-sm'
+                  : 'text-[var(--c-text-2)] hover:text-[var(--c-text)]'
               }`}
             >
               <FiUser className="text-sm" />
@@ -169,8 +169,8 @@ const Account = () => {
               onClick={() => setActiveTab('settings')}
               className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 ${
                 activeTab === 'settings'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-[var(--c-primary)] text-[var(--c-text)] shadow-sm'
+                  : 'text-[var(--c-text-2)] hover:text-[var(--c-text)]'
               }`}
             >
               <FiSettings className="text-sm" />
@@ -186,23 +186,23 @@ const Account = () => {
           {activeTab === 'profile' && (
             <div className="space-y-5 animate-fadeIn">
               {/* Profile Card Header with Avatar */}
-              <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-slate-950/40 border border-slate-800/60 relative">
+              <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-[var(--c-canvas-80)] border border-[var(--c-line)]/60 relative">
                 <div className="relative group">
                   <img
                     src={avatarSrc}
                     alt={user?.userName || "User"}
-                    className="w-24 h-24 rounded-full object-cover border-2 border-indigo-500/40 shadow-xl shadow-indigo-950/50"
+                    className="w-24 h-24 rounded-full object-cover border-2 border-[var(--c-primary-50)] shadow-xl "
                   />
-                  <span className="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-slate-900 rounded-full shadow" />
+                  <span className="absolute bottom-1 right-1 w-4 h-4 bg-[var(--c-online)] border-2 border-[var(--c-panel)] rounded-full shadow" />
                   
                   {/* Camera overlay button */}
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="absolute inset-0 bg-slate-950/60 rounded-full flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-xs font-medium text-slate-200 gap-1 backdrop-blur-xs"
+                    className="absolute inset-0 bg-[var(--c-canvas)]/60 rounded-full flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-xs font-medium text-[var(--c-text)] gap-1 "
                     title="Change Avatar"
                   >
-                    <FiCamera className="text-xl text-indigo-400" />
+                    <FiCamera className="text-xl text-[var(--c-link)]" />
                     <span>Change</span>
                   </button>
                 </div>
@@ -218,12 +218,12 @@ const Account = () => {
                 {/* Name & Handle */}
                 <div className="text-center mt-3">
                   <div className="flex items-center justify-center gap-2">
-                    <h3 className="text-base font-bold text-white">{user?.name}</h3>
-                    <span className="text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">
+                    <h3 className="text-base font-bold text-[var(--c-text)]">{user?.name}</h3>
+                    <span className="text-[11px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full bg-[var(--c-primary-soft)] border border-[var(--c-line)] text-[var(--c-link)]">
                       Owner
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">@{user?.userName}</p>
+                  <p className="text-xs text-[var(--c-text-2)] mt-0.5">@{user?.userName}</p>
                 </div>
 
                 {/* Upload Action Strip when image picked */}
@@ -232,7 +232,7 @@ const Account = () => {
                     <button
                       onClick={handleUploadImage}
                       disabled={uploadingImg}
-                      className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-indigo-600/30"
+                      className="px-3.5 py-1.5 rounded-lg bg-[var(--c-primary)] hover:bg-[var(--c-primary-hover)] text-[var(--c-text)] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md "
                     >
                       {uploadingImg ? (
                         <span className="loading loading-spinner loading-xs" />
@@ -245,7 +245,7 @@ const Account = () => {
                     <button
                       onClick={handleCancelImage}
                       disabled={uploadingImg}
-                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition"
+                      className="px-3 py-1.5 rounded-lg bg-[var(--c-surface)] hover:bg-[var(--c-raised)] text-[var(--c-text-2)] text-xs font-medium transition"
                     >
                       Cancel
                     </button>
@@ -255,66 +255,66 @@ const Account = () => {
 
               {/* Owner Details Grid */}
               <div className="space-y-2.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-1">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--c-text-2)] px-1">
                   Owner Information
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {/* Full Name */}
-                  <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80 flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-slate-800 text-slate-400 shrink-0">
+                  <div className="p-3 rounded-xl bg-[var(--c-canvas-80)] border border-[var(--c-line-50)] flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-[var(--c-surface)] text-[var(--c-text-2)] shrink-0">
                       <FiUser className="text-sm" />
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Full Name</span>
-                      <span className="text-xs font-semibold text-slate-200 truncate">{user?.name}</span>
+                      <span className="text-[11px] text-[var(--c-text-3)] font-medium uppercase tracking-wider">Full Name</span>
+                      <span className="text-xs font-semibold text-[var(--c-text)] truncate">{user?.name}</span>
                     </div>
                   </div>
 
                   {/* Username */}
-                  <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80 flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-slate-800 text-slate-400 shrink-0">
+                  <div className="p-3 rounded-xl bg-[var(--c-canvas-80)] border border-[var(--c-line-50)] flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-[var(--c-surface)] text-[var(--c-text-2)] shrink-0">
                       <span className="text-xs font-bold">@</span>
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Username</span>
-                      <span className="text-xs font-semibold text-slate-200 truncate">@{user?.userName}</span>
+                      <span className="text-[11px] text-[var(--c-text-3)] font-medium uppercase tracking-wider">Username</span>
+                      <span className="text-xs font-semibold text-[var(--c-text)] truncate">@{user?.userName}</span>
                     </div>
                   </div>
 
                   {/* Email */}
-                  <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80 flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-slate-800 text-slate-400 shrink-0">
+                  <div className="p-3 rounded-xl bg-[var(--c-canvas-80)] border border-[var(--c-line-50)] flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-[var(--c-surface)] text-[var(--c-text-2)] shrink-0">
                       <FiMail className="text-sm" />
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Email</span>
-                      <span className="text-xs font-semibold text-slate-200 truncate">{user?.email}</span>
+                      <span className="text-[11px] text-[var(--c-text-3)] font-medium uppercase tracking-wider">Email</span>
+                      <span className="text-xs font-semibold text-[var(--c-text)] truncate">{user?.email}</span>
                     </div>
                   </div>
 
                   {/* Phone */}
-                  <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80 flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-slate-800 text-slate-400 shrink-0">
+                  <div className="p-3 rounded-xl bg-[var(--c-canvas-80)] border border-[var(--c-line-50)] flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-[var(--c-surface)] text-[var(--c-text-2)] shrink-0">
                       <FiPhone className="text-sm" />
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Phone Number</span>
-                      <span className="text-xs font-semibold text-slate-200 truncate">{user?.phonenumber || 'Not specified'}</span>
+                      <span className="text-[11px] text-[var(--c-text-3)] font-medium uppercase tracking-wider">Phone Number</span>
+                      <span className="text-xs font-semibold text-[var(--c-text)] truncate">{user?.phonenumber || 'Not specified'}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Account Type Card */}
-                <div className="p-3.5 rounded-xl bg-indigo-950/20 border border-indigo-500/20 flex items-center justify-between mt-2">
+                <div className="p-3.5 rounded-xl bg-[var(--c-primary-soft)] border border-[var(--c-line)] flex items-center justify-between mt-2">
                   <div className="flex items-center gap-2.5">
-                    <FiShield className="text-indigo-400 text-base shrink-0" />
+                    <FiShield className="text-[var(--c-link)] text-base shrink-0" />
                     <div>
-                      <h4 className="text-xs font-semibold text-white">Owner Account Protection</h4>
-                      <p className="text-[11px] text-slate-400">Client-side storage encryption active</p>
+                      <h4 className="text-xs font-semibold text-[var(--c-text)]">Owner Account Protection</h4>
+                      <p className="text-[11px] text-[var(--c-text-2)]">Client-side storage encryption active</p>
                     </div>
                   </div>
-                  <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                  <span className="text-[11px] font-semibold text-[var(--c-online)] bg-[var(--c-online)]/10 px-2 py-0.5 rounded-md border border-[var(--c-online-30)]">
                     Active
                   </span>
                 </div>
@@ -326,10 +326,10 @@ const Account = () => {
           {activeTab === 'settings' && (
             <div className="space-y-5 animate-fadeIn">
               {/* Security & Password Form */}
-              <div className="p-4 rounded-2xl bg-slate-950/40 border border-slate-800/80 space-y-3.5">
-                <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
-                  <FiLock className="text-indigo-400 text-sm" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+              <div className="p-4 rounded-2xl bg-[var(--c-canvas-80)] border border-[var(--c-line-50)] space-y-3.5">
+                <div className="flex items-center gap-2 border-b border-[var(--c-line)] pb-2">
+                  <FiLock className="text-[var(--c-link)] text-sm" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--c-text-2)]">
                     Change Security Password
                   </h3>
                 </div>
@@ -337,7 +337,7 @@ const Account = () => {
                 <form onSubmit={handlePasswordSubmit} className="space-y-3">
                   {/* Old Password */}
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-semibold text-[var(--c-text-2)] uppercase tracking-wider mb-1">
                       Current Password
                     </label>
                     <div className="relative flex items-center">
@@ -348,12 +348,12 @@ const Account = () => {
                         onChange={handlePasswordChange}
                         required
                         placeholder="••••••••"
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/30 transition pr-9"
+                        className="w-full bg-[var(--c-panel)] border border-[var(--c-line)] rounded-xl px-3 py-2 text-xs text-[var(--c-text)] focus:outline-none focus:border-[var(--c-primary)] focus:ring-1 focus:ring-[var(--c-primary)] transition pr-9"
                       />
                       <button
                         type="button"
                         onClick={() => setShowOldPass(!showOldPass)}
-                        className="absolute right-2.5 text-slate-500 hover:text-slate-300 transition"
+                        className="absolute right-2.5 text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition"
                       >
                         {showOldPass ? <FiEyeOff className="text-sm" /> : <FiEye className="text-sm" />}
                       </button>
@@ -362,7 +362,7 @@ const Account = () => {
 
                   {/* New Password */}
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-semibold text-[var(--c-text-2)] uppercase tracking-wider mb-1">
                       New Password
                     </label>
                     <div className="relative flex items-center">
@@ -376,24 +376,24 @@ const Account = () => {
                         pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}"
                         title="Must contain at least one number, one lowercase, one uppercase, and be at least 8 characters"
                         placeholder="••••••••"
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/30 transition pr-9"
+                        className="w-full bg-[var(--c-panel)] border border-[var(--c-line)] rounded-xl px-3 py-2 text-xs text-[var(--c-text)] focus:outline-none focus:border-[var(--c-primary)] focus:ring-1 focus:ring-[var(--c-primary)] transition pr-9"
                       />
                       <button
                         type="button"
                         onClick={() => setShowNewPass(!showNewPass)}
-                        className="absolute right-2.5 text-slate-500 hover:text-slate-300 transition"
+                        className="absolute right-2.5 text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition"
                       >
                         {showNewPass ? <FiEyeOff className="text-sm" /> : <FiEye className="text-sm" />}
                       </button>
                     </div>
-                    <span className="text-[10px] text-slate-500 mt-1 block">
+                    <span className="text-[11px] text-[var(--c-text-3)] mt-1 block">
                       Min 8 chars, 1 uppercase, 1 lowercase, 1 number
                     </span>
                   </div>
 
                   {/* Confirm Password */}
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-semibold text-[var(--c-text-2)] uppercase tracking-wider mb-1">
                       Confirm New Password
                     </label>
                     <div className="relative flex items-center">
@@ -404,12 +404,12 @@ const Account = () => {
                         onChange={handlePasswordChange}
                         required
                         placeholder="••••••••"
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/30 transition pr-9"
+                        className="w-full bg-[var(--c-panel)] border border-[var(--c-line)] rounded-xl px-3 py-2 text-xs text-[var(--c-text)] focus:outline-none focus:border-[var(--c-primary)] focus:ring-1 focus:ring-[var(--c-primary)] transition pr-9"
                       />
                       <button
                         type="button"
                         onClick={() => setShowConfirmPass(!showConfirmPass)}
-                        className="absolute right-2.5 text-slate-500 hover:text-slate-300 transition"
+                        className="absolute right-2.5 text-[var(--c-text-3)] hover:text-[var(--c-text-2)] transition"
                       >
                         {showConfirmPass ? <FiEyeOff className="text-sm" /> : <FiEye className="text-sm" />}
                       </button>
@@ -419,7 +419,7 @@ const Account = () => {
                   <button
                     type="submit"
                     disabled={updatingPass}
-                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-md shadow-indigo-600/30 transition duration-150 flex items-center justify-center gap-1.5"
+                    className="w-full py-2.5 bg-[var(--c-primary)] hover:bg-[var(--c-primary-hover)] text-[var(--c-text)] font-semibold text-xs rounded-xl shadow-md  transition duration-150 flex items-center justify-center gap-1.5"
                   >
                     {updatingPass ? (
                       <span className="loading loading-spinner loading-xs" />
@@ -433,15 +433,15 @@ const Account = () => {
               </div>
 
               {/* Workspace Preferences Section */}
-              <div className="p-4 rounded-2xl bg-slate-950/40 border border-slate-800/80 space-y-3">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+              <div className="p-4 rounded-2xl bg-[var(--c-canvas-80)] border border-[var(--c-line-50)] space-y-3">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--c-text-2)] block">
                   Workspace Preferences
                 </span>
 
-                <div className="flex items-center justify-between py-1 border-b border-slate-800/60">
+                <div className="flex items-center justify-between py-1 border-b border-[var(--c-line)]/60">
                   <div>
-                    <h5 className="text-xs font-medium text-slate-200">Desktop Notifications</h5>
-                    <p className="text-[11px] text-slate-500">Alert for incoming direct messages</p>
+                    <h5 className="text-xs font-medium text-[var(--c-text)]">Desktop Notifications</h5>
+                    <p className="text-[11px] text-[var(--c-text-3)]">Alert for incoming direct messages</p>
                   </div>
                   <button
                     type="button"
@@ -467,11 +467,11 @@ const Account = () => {
                       }
                     }}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                      desktopNotifications ? 'bg-indigo-600' : 'bg-slate-700'
+                      desktopNotifications ? 'bg-[var(--c-primary)]' : 'bg-[var(--c-raised)]'
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      className={`inline-block h-4 w-4 transform rounded-full bg-[var(--c-surface)] transition-transform ${
                         desktopNotifications ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
@@ -480,8 +480,8 @@ const Account = () => {
 
                 <div className="flex items-center justify-between py-1">
                   <div>
-                    <h5 className="text-xs font-medium text-slate-200">Chat Sounds</h5>
-                    <p className="text-[11px] text-slate-500">Play tone on message send & receive</p>
+                    <h5 className="text-xs font-medium text-[var(--c-text)]">Chat Sounds</h5>
+                    <p className="text-[11px] text-[var(--c-text-3)]">Play tone on message send & receive</p>
                   </div>
                   <button
                     type="button"
@@ -497,11 +497,11 @@ const Account = () => {
                       }
                     }}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                      chatSounds ? 'bg-indigo-600' : 'bg-slate-700'
+                      chatSounds ? 'bg-[var(--c-primary)]' : 'bg-[var(--c-raised)]'
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      className={`inline-block h-4 w-4 transform rounded-full bg-[var(--c-surface)] transition-transform ${
                         chatSounds ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
@@ -514,7 +514,7 @@ const Account = () => {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="w-full py-2.5 px-4 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2"
+                  className="w-full py-2.5 px-4 bg-[var(--c-danger-10)] hover:bg-[var(--c-danger)]/20 border border-[var(--c-danger-40)] text-[var(--c-danger)] font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2"
                 >
                   <FiLogOut className="text-sm" />
                   Sign Out from Workspace

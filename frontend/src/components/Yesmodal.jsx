@@ -2,7 +2,7 @@
 import { useContext } from "react";
 import chatContext from "../contexts/ChatContext/chatcontext";
 import { IoCloseSharp } from "react-icons/io5";
-import { GiEvilEyes } from "react-icons/gi";
+import { FiAlertTriangle } from "react-icons/fi";
 import { toast } from "react-toastify";
 
 
@@ -67,12 +67,12 @@ const Yesmodal = () => {
     if (!selectedchat || !user) return null;
 
     return (
-        <div className="fixed inset-0 bg-transparent bg-opacity-30 backdrop-blur-md z-50 flex items-center justify-center px-4">
-            <div className="bg-white dark:bg-gray-900 text-black dark:text-white w-full max-w-md rounded-xl p-6 shadow-2xl relative transition-all duration-300 ease-in-out">
+        <div className="fixed inset-0 bg-[var(--c-overlay)] backdrop-blur-md z-50 flex items-center justify-center px-4">
+            <div className="bg-[var(--c-surface)]  text-[var(--c-text)]  w-full max-w-md rounded-xl p-6 shadow-2xl relative transition-all duration-300 ease-in-out">
 
                 {/* Close Button */}
                 <button
-                    className="absolute top-3 right-3 text-gray-500 hover:text-red-500 text-xl transition-transform hover:scale-125"
+                    className="absolute top-3 right-3 text-[var(--c-text-3)] hover:text-[var(--c-danger)] text-xl transition-transform hover:scale-125"
                     onClick={() => {
                         setYesmodal(false);
                         setModalType(null);
@@ -82,17 +82,19 @@ const Yesmodal = () => {
                 </button>
 
                 {/* Icon */}
-                <div className="text-6xl flex justify-center items-center text-center mb-4 dark:text-green-400">
-                    <GiEvilEyes />
+                <div className="flex justify-center mb-4">
+                    <span className="w-16 h-16 rounded-full bg-[var(--c-danger-10)] border border-[var(--c-danger-40)] flex items-center justify-center text-[var(--c-danger)]">
+                        <FiAlertTriangle className="text-3xl" />
+                    </span>
                 </div>
 
                 {/* Title */}
-                <h1 className="text-2xl font-bold text-center text-fuchsia-700 dark:text-fuchsia-400 mb-2">
+                <h1 className="text-2xl font-bold text-center text-[var(--c-text)]  mb-2">
                     {title}
                 </h1>
 
                 {/* Message */}
-                <p className="text-center text-gray-600 dark:text-gray-300 mb-6 px-2">
+                <p className="text-center text-[var(--c-text-3)]  mb-6 px-2">
                     {message}
                 </p>
 
@@ -104,7 +106,7 @@ const Yesmodal = () => {
                             setYesmodal(false);
                             setModalType(null);
                         }}
-                        className="bg-red-600 hover:bg-red-700 text-white font-medium px-6 py-2 rounded-full shadow-md transition-all duration-200 w-full sm:w-auto text-center"
+                        className="bg-[var(--c-danger)] hover:bg-[var(--c-danger)] text-[var(--c-text)] font-medium px-6 py-2 rounded-full shadow-md transition-all duration-200 w-full sm:w-auto text-center"
                     >
                         Yes
                     </button>
@@ -114,7 +116,7 @@ const Yesmodal = () => {
                             setYesmodal(false);
                             setModalType(null);
                         }}
-                        className="bg-gray-300 hover:bg-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 text-black dark:text-white font-medium px-6 py-2 rounded-full shadow-md transition-all duration-200 w-full sm:w-auto text-center"
+                        className="bg-[var(--c-raised)] hover:bg-[var(--c-primary)] text-[var(--c-text)]  font-medium px-6 py-2 rounded-full shadow-md transition-all duration-200 w-full sm:w-auto text-center"
                     >
                         No
                     </button>

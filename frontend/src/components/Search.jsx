@@ -5,11 +5,13 @@ import InfiniteScroll from "react-infinite-scroll-component";
 import 'react-toastify/dist/ReactToastify.css';
 import userContext from '../contexts/UserContext/userContext';
 import chatContext from '../contexts/ChatContext/chatcontext';
+import SocketContext from '../contexts/Socket.io.Context/socket.Context';
 import Loader from './Loader';
 
 const Search = () => {
   const { loading, Alluser, setSearchUser, searchUser, sendRequest } = useContext(userContext);
   const { MakeChat, chat } = useContext(chatContext);
+  const { socket } = useContext(SocketContext);
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [displayUser, setDisplayUser] = useState([]);
@@ -66,6 +68,9 @@ const Search = () => {
     } else if (targetUser.connectionStatus === 'none' || !targetUser.connectionStatus) {
       const success = await sendRequest(targetUser._id);
       if (success) {
+        if (socket?.current) {
+          socket.current.emit("friend request sent", { targetUserId: String(targetUser._id) });
+        }
         setSearchUser((prev) =>
           prev.map((u) => (u._id === targetUser._id ? { ...u, connectionStatus: 'pending' } : u))
         );
@@ -99,10 +104,10 @@ const Search = () => {
   return (
     <div className="w-full relative" ref={searchContainerRef}>
       {/* Live Search Input Bar */}
-      <div className="flex items-center bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2 w-full focus-within:border-indigo-500/80 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
+      <div className="flex items-center bg-[var(--c-panel-95)] border border-[var(--c-line)] rounded-xl px-3 py-2 w-full focus-within:border-[var(--c-primary)] focus-within:ring-2 focus-within:ring-[var(--ring-brand)] transition-all">
         {/* Search Icon */}
-        <span className="text-slate-400 text-sm pl-0.5 shrink-0 flex items-center">
-          <FiSearch className="text-base text-slate-400" />
+        <span className="text-[var(--c-text-2)] text-sm pl-0.5 shrink-0 flex items-center">
+          <FiSearch className="text-base text-[var(--c-text-2)]" />
         </span>
 
         {/* Input */}
@@ -113,19 +118,19 @@ const Search = () => {
             setSearch(e.target.value);
             setOpen(true);
           }}
-          className="flex-grow bg-transparent outline-none text-white px-2.5 placeholder:text-slate-500 text-xs sm:text-sm font-normal"
+          className="flex-grow bg-transparent outline-none text-[var(--c-text)] px-2.5  text-xs sm:text-sm font-normal"
           placeholder="Search teammates, users..."
         />
 
         {/* Loading Spinner or Clear Button */}
         {loading ? (
-          <span className="loading loading-spinner loading-xs text-indigo-400 shrink-0" />
+          <span className="loading loading-spinner loading-xs text-[var(--c-link)] shrink-0" />
         ) : (
           search.length > 0 && (
             <button
               type="button"
               onClick={handleClear}
-              className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition shrink-0"
+              className="text-[var(--c-text-2)] hover:text-[var(--c-text)] p-1 rounded-md hover:bg-[var(--c-surface)] transition shrink-0"
               title="Clear search"
             >
               <FiX className="text-sm" />
@@ -136,10 +141,10 @@ const Search = () => {
 
       {/* Live Search Results Dropdown */}
       {open && search.trim().length > 0 && searchUser.length > 0 && (
-        <div className="flex flex-col rounded-2xl bg-slate-900/95 backdrop-blur-xl w-full max-h-[60vh] overflow-y-auto subtle-scrollbar gap-1.5 mt-2 p-2 z-50 absolute top-12 left-0 shadow-2xl border border-slate-800 shadow-slate-950/80 animate-fadeIn">
-          <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-800 flex items-center justify-between">
+        <div className="flex flex-col rounded-2xl bg-[var(--c-panel-95)] backdrop-blur-xl w-full max-h-[60vh] overflow-y-auto subtle-scrollbar gap-1.5 mt-2 p-2 z-50 absolute top-12 left-0 shadow-2xl border border-[var(--c-line)]  animate-fadeIn">
+          <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--c-text-2)] border-b border-[var(--c-line)] flex items-center justify-between">
             <span>Live Results</span>
-            <span className="text-indigo-400">{searchUser.length} found</span>
+            <span className="text-[var(--c-link)]">{searchUser.length} found</span>
           </div>
 
           <InfiniteScroll
@@ -154,7 +159,7 @@ const Search = () => {
               )
             }
             endMessage={
-              <p className="text-center text-slate-500 text-xs py-2">
+              <p className="text-center text-[var(--c-text-3)] text-xs py-2">
                 End of results
               </p>
             }
@@ -162,7 +167,7 @@ const Search = () => {
             {displayUser.map((u) => (
               <div
                 key={u._id}
-                className="flex items-center justify-between w-full gap-2.5 p-2 rounded-xl hover:bg-slate-800/70 transition-all duration-150"
+                className="flex items-center justify-between w-full gap-2.5 p-2 rounded-xl hover:bg-[var(--c-surface-80)] transition-all duration-150"
               >
                 <div className="flex items-center gap-2.5 flex-1 overflow-hidden">
                   <img
@@ -174,11 +179,11 @@ const Search = () => {
                           : '/avtar.png'
                     }
                     alt={u.userName}
-                    className="w-9 h-9 rounded-full object-cover border border-slate-700/60 shrink-0"
+                    className="w-9 h-9 rounded-full object-cover border border-[var(--c-line)] shrink-0"
                   />
                   <div className="flex flex-col justify-center overflow-hidden">
-                    <h3 className="text-white font-medium truncate text-xs sm:text-sm">{u.name}</h3>
-                    <span className="text-slate-400 text-[11px] truncate">@{u.userName}</span>
+                    <h3 className="text-[var(--c-text)] font-medium truncate text-xs sm:text-sm">{u.name}</h3>
+                    <span className="text-[var(--c-text-2)] text-[11px] truncate">@{u.userName}</span>
                   </div>
                 </div>
 
@@ -186,12 +191,12 @@ const Search = () => {
                   onClick={() => handleClick(u)}
                   disabled={!isAlreadyConnected(u) && (u.connectionStatus === 'pending' || u.connectionStatus === 'received')}
                   className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all shrink-0 ${isAlreadyConnected(u)
-                      ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm'
+                      ? 'bg-[var(--c-primary)] hover:bg-[var(--c-primary-hover)] text-[var(--c-text)] shadow-sm'
                       : u.connectionStatus === 'pending'
-                        ? 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed'
+                        ? 'bg-[var(--c-surface)] text-[var(--c-text-2)] border border-[var(--c-line)] cursor-not-allowed'
                         : u.connectionStatus === 'received'
-                          ? 'bg-amber-600/20 text-amber-300 border border-amber-500/30'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:text-white'
+                          ? 'bg-[var(--c-warning-15)] text-[var(--c-warning)] border border-[var(--c-warning-40)]'
+                          : 'bg-[var(--c-surface)] hover:bg-[var(--c-raised)] text-[var(--c-text)] border border-[var(--c-line)] hover:text-[var(--c-text)]'
                     }`}
                 >
                   {isAlreadyConnected(u) ? 'Chat' :
@@ -206,9 +211,9 @@ const Search = () => {
 
       {/* No results popover when user typed but no matches */}
       {open && search.trim().length > 0 && !loading && searchUser.length === 0 && (
-        <div className="flex flex-col rounded-2xl bg-slate-900/95 backdrop-blur-xl w-full p-4 mt-2 z-50 absolute top-12 left-0 shadow-2xl border border-slate-800 shadow-slate-950/80 animate-fadeIn text-center">
-          <p className="text-xs text-slate-400">
-            No users found matching "<span className="text-slate-200 font-medium">{search.trim()}</span>"
+        <div className="flex flex-col rounded-2xl bg-[var(--c-panel-95)] backdrop-blur-xl w-full p-4 mt-2 z-50 absolute top-12 left-0 shadow-2xl border border-[var(--c-line)]  animate-fadeIn text-center">
+          <p className="text-xs text-[var(--c-text-2)]">
+            No users found matching "<span className="text-[var(--c-text)] font-medium">{search.trim()}</span>"
           </p>
         </div>
       )}

@@ -20,7 +20,7 @@ const Logout = () => {
     return (
   <div
   onClick={handleClick}
-  className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 bg-gray-800 text-white hover:bg-red-600 rounded-lg cursor-pointer transition-all duration-200 w-full"
+  className="flex items-center justify-center sm:justify-start gap-2 px-4 py-2 bg-[var(--c-panel)] text-[var(--c-text)] hover:bg-[var(--c-danger)] rounded-lg cursor-pointer transition-all duration-200 w-full"
 >
   <TbLogout2 className="text-xl" />
   <span className="text-sm sm:text-md font-medium" aria-label="Logout from Talkky">Logout</span>

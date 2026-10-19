@@ -54,12 +54,12 @@ const AudioMessage = ({ src }) => {
     };
 
     return (
-        <div className="flex items-center gap-2 p-2 rounded-lg bg-gray-900/40 min-w-[200px]">
+        <div className="flex items-center gap-2 p-2 rounded-lg bg-[var(--c-panel)]/40 min-w-[200px]">
             <button
                 onClick={togglePlay}
-                className="p-2 bg-fuchsia-600 rounded-full hover:bg-fuchsia-700 transition"
+                className="p-2 bg-[var(--c-primary)] text-[var(--c-on-primary)] rounded-full hover:bg-[var(--c-primary-hover)] transition"
             >
-                {isPlaying ? <IoPause className="text-white" /> : <IoPlay className="text-white pl-0.5" />}
+                {isPlaying ? <IoPause className="text-[var(--c-on-primary)]" /> : <IoPlay className="text-[var(--c-on-primary)] pl-0.5" />}
             </button>
 
             <div className="flex flex-col flex-1 gap-1">
@@ -73,9 +73,9 @@ const AudioMessage = ({ src }) => {
                         audioRef.current.currentTime = time;
                         setProgress(e.target.value);
                     }}
-                    className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+                    className="w-full h-1 bg-[var(--c-raised)] rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-[var(--c-surface)] [&::-webkit-slider-thumb]:rounded-full"
                 />
-                <div className="flex justify-between text-[10px] text-gray-300">
+                <div className="flex justify-between text-[11px] text-[var(--c-text)]">
                     <span>{formatTime(audioRef.current?.currentTime)}</span>
                     <span>{formatTime(duration)}</span>
                 </div>

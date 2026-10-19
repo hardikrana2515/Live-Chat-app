@@ -2,23 +2,24 @@ import { motion } from "framer-motion";
 
 const TypingIndicator = () => {
     return (
-        <div className="flex items-center gap-1 bg-gray-700/50 px-3 py-2 rounded-full w-fit">
-            <span className="text-xs text-gray-400 mr-2">Typing</span>
-            <div className="flex gap-1">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--c-text-2)] leading-none">
+            typing
+            <span className="inline-flex items-end gap-[3px] h-2.5">
                 {[0, 1, 2].map((i) => (
-                    <motion.div
+                    <motion.span
                         key={i}
-                        className="w-1.5 h-1.5 bg-fuchsia-400 rounded-full"
-                        animate={{ y: [0, -5, 0] }}
+                        className="w-1 h-1 rounded-full bg-[var(--c-text-3)]"
+                        animate={{ y: [0, -3, 0], opacity: [0.4, 1, 0.4] }}
                         transition={{
-                            duration: 0.6,
+                            duration: 0.9,
                             repeat: Infinity,
-                            delay: i * 0.2,
+                            delay: i * 0.15,
+                            ease: "easeInOut",
                         }}
                     />
                 ))}
-            </div>
-        </div>
+            </span>
+        </span>
     );
 };
 

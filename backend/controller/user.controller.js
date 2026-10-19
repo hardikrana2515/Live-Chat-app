@@ -400,12 +400,23 @@ const sendRequest = AsyncHandler(async (req, res) => {
   targetUser.friendRequests.push({ sender: req.user._id, status: "pending" });
   await targetUser.save();
 
+  const io = req.app.get("io");
+  if (io) {
+    io.to(targetUser._id.toString()).emit("friend request received", {
+      senderId: req.user._id.toString(),
+      senderName: req.user.name,
+    });
+  }
+
   res.status(200).json(new ApiResponse(200, {}, "Friend Request Sent Successfully"));
 });
 
 const getRequests = AsyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).populate("friendRequests.sender", "name userName avtar");
-  res.status(200).json(new ApiResponse(200, user.friendRequests, "Requests fetched successfully"));
+  // Drop requests whose sender account no longer exists (populate yields null)
+  // so clients never dereference a missing sender. (Issue E2)
+  const requests = (user.friendRequests || []).filter((r) => r && r.sender);
+  res.status(200).json(new ApiResponse(200, requests, "Requests fetched successfully"));
 });
 
 const acceptRequest = AsyncHandler(async (req, res) => {
@@ -427,26 +438,49 @@ const acceptRequest = AsyncHandler(async (req, res) => {
     throw new ApiError(404, "Request not found");
   }
 
-  if (status === 'accepted') {
-    const senderId = user.friendRequests[reqIndex].sender;
+  const senderId = user.friendRequests[reqIndex].sender;
 
-    if (!user.friends.some((f) => (f._id || f).toString() === senderId.toString())) {
-      user.friends.push(senderId);
+  if (status === 'accepted') {
+    // Look up the sender first — if their account was deleted, don't create
+    // a dangling friendship entry.
+    const senderUser = await User.findById(senderId);
+
+    if (!senderUser) {
+      // Sender no longer exists: just drop the request
+      user.friendRequests.splice(reqIndex, 1);
+      await user.save();
+      return res.status(200).json(new ApiResponse(200, {}, "Request rejected (sender no longer exists)"));
+    }
+
+    if (!user.friends.some((f) => (f._id || f).toString() === senderUser._id.toString())) {
+      user.friends.push(senderUser._id);
     }
 
     // Add me to sender's friend list too
-    const senderUser = await User.findById(senderId);
-    if (senderUser) {
-      if (!senderUser.friends.some((f) => (f._id || f).toString() === user._id.toString())) {
-        senderUser.friends.push(user._id);
-      }
-      await senderUser.save();
+    if (!senderUser.friends.some((f) => (f._id || f).toString() === user._id.toString())) {
+      senderUser.friends.push(user._id);
     }
+    await senderUser.save();
   }
 
   // Remove request regardless of accepted/rejected
   user.friendRequests.splice(reqIndex, 1);
   await user.save();
+
+  const io = req.app.get("io");
+  if (io) {
+    const senderIdStr = senderId ? senderId.toString() : "";
+    if (senderIdStr) {
+      io.to(senderIdStr).emit("friend request updated", {
+        fromUser: req.user._id.toString(),
+        status
+      });
+    }
+    io.to(req.user._id.toString()).emit("friend request updated", {
+      fromUser: senderIdStr,
+      status
+    });
+  }
 
   res.status(200).json(new ApiResponse(200, {}, `Request ${status}`));
 });
@@ -455,7 +489,9 @@ const blockUser = AsyncHandler(async (req, res) => {
   const { userId } = req.body; // User to block
 
   const user = await User.findById(req.user._id);
-  if (!user.blockedUsers.includes(userId)) {
+  // Compare by string: .includes() on an ObjectId array never matches a
+  // string id, which previously created duplicate block entries. (Issue E3)
+  if (!user.blockedUsers.some((id) => String(id) === String(userId))) {
     user.blockedUsers.push(userId);
     await user.save();
   }
@@ -481,6 +517,22 @@ const getFriends = AsyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, user.friends, "Friends fetched successfully"));
 });
 
+// Publish this device's ECDH public key so chat peers can derive shared
+// conversation keys. The private key never leaves the device. (Issue 3.2)
+const setPublicKey = AsyncHandler(async (req, res) => {
+  const { publicKey } = req.body;
+
+  if (!publicKey || typeof publicKey !== "string" || publicKey.length > 500) {
+    return res.status(400).json(new ApiResponse(400, null, "A valid public key is required"));
+  }
+
+  const user = await User.findById(req.user._id);
+  user.publicKey = publicKey;
+  await user.save();
+
+  res.status(200).json(new ApiResponse(200, { publicKey: user.publicKey }, "Public key saved"));
+});
+
 export {
   userRegister,
   userLogin,
@@ -496,5 +548,6 @@ export {
   acceptRequest,
   getFriends,
   blockUser,
-  unblockUser
+  unblockUser,
+  setPublicKey
 };

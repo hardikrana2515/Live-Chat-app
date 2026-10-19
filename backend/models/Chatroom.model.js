@@ -36,6 +36,13 @@ const chatRoomSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Message",
     },
+    // E2EE group key distribution: { [userId]: { by, byKey, key } } where
+    // `key` is the AES-wrapped copy of the group key, encrypted to that
+    // member's ECDH pairwise key. The server never sees a plaintext key. (Issue 3.2)
+    groupKeys: {
+      type: mongoose.Schema.Types.Mixed,
+      default: undefined,
+    },
   },
   {
     timestamps: true,
