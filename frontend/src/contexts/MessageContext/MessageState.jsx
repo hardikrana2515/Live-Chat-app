@@ -1,7 +1,6 @@
 
 import messageContext from '../MessageContext/messageContext.js'
 import { useState, useEffect, useContext } from 'react'
-import { useNavigate } from "react-router-dom"
 import API from '../Api.js'
 import { toast } from 'react-toastify'
 import SocketContext from '../Socket.io.Context/socket.Context.js'
@@ -20,17 +19,9 @@ const MessageState = ({ children }) => {
     const [Del, setDel] = useState(false)
     const [delForEveryone, setDelForEveryone] = useState(false)
     const [editingMsg, setEditingMsg] = useState(null)
-    const navigate = useNavigate()
     const { socket } = useContext(SocketContext)
 
     const ENDPOINT = "http://localhost:4000/"
-
-    useEffect(() => {
-        const userinfo = JSON.parse(localStorage.getItem("userInfo"))
-        if (!userinfo) {
-            navigate("/login")
-        }
-    }, [])
 
     // Clear loaded messages whenever the logged-in user changes (logout /
     // account switch) so the next account never sees stale messages (Issue 5.3)

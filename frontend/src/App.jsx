@@ -1,9 +1,9 @@
-
 import { Routes, Route } from 'react-router-dom'
-import Home from './pages/Home'
+import ErrorBoundary from './components/ErrorBoundary'
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Login from './pages/Loginpage'
+import LandingRoute from './components/landing/LandingRoute'
 import UserState from './contexts/UserContext/UserState'
 import ProtectedRoute from './routes/protected.routes'
 import Chatpage from './pages/Chatpage'
@@ -14,10 +14,15 @@ import NotFoundpage from './pages/NotFoundpage';
 
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import GlobePrototypePage from './pages/GlobePrototypePage';
+import AssetShowcasePage from './pages/AssetShowcasePage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
 
 function App() {
 
   return (
+    <ErrorBoundary>
     <UserState>
       <SocketStates ENDPOINT="http://localhost:4000">
         <ChatState>
@@ -34,11 +39,16 @@ function App() {
             />
             <div className="app ">
               <Routes>
-                <Route path="/" element={<ProtectedRoute Component={Home} />} />
+                {/* Landing page: show to unauthenticated users, redirect authenticated to chat */}
+                <Route path="/" element={<LandingRoute />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/password/forgot" element={<ForgotPassword />} />
                 <Route path="/password/reset/:token" element={<ResetPassword />} />
                 <Route path="/chat" element={<ProtectedRoute Component={Chatpage} />} />
+                <Route path="/prototype/globe" element={<GlobePrototypePage />} />
+                <Route path="/prototype/assets" element={<AssetShowcasePage />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                <Route path="/terms" element={<TermsOfServicePage />} />
 
                 <Route path="*" element={<NotFoundpage />} />
               </Routes>
@@ -47,7 +57,7 @@ function App() {
         </ChatState>
       </SocketStates>
     </UserState>
+    </ErrorBoundary>
   )
 }
-
 export default App

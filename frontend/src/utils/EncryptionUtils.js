@@ -122,9 +122,17 @@ export const decryptMessage = (ciphertext, chatId) => {
     try {
         if (ciphertext.startsWith(E2_PREFIX)) {
             const key = getCachedChatKey(chatId);
-            if (!key) return "[Unable to decrypt message]";
+            if (!key) {
+                if (chatId) {
+                    ensureChatKey(chatId).catch(() => {});
+                }
+                return "[Unable to decrypt message]";
+            }
             const original = e2DecryptBody(ciphertext.slice(E2_PREFIX.length), key);
-            return original || "[Unable to decrypt message]";
+            if (original) return original;
+            // Fallback for cases where key rotation or legacy wrap was used
+            const fallback = syncDecrypt(ciphertext.slice(E2_PREFIX.length), LEGACY_KEY);
+            return fallback || "[Unable to decrypt message]";
         }
         // Legacy ciphertext (old static key) or plain text (e.g. old polls)
         const original = syncDecrypt(ciphertext, LEGACY_KEY);

@@ -4,7 +4,7 @@ import userContext from "../UserContext/userContext.js"
 import { toast } from 'react-toastify'
 import API from "../Api.js"
 import {
-  registerChat, registerChats, getRegisteredChat, ensureChatKey,
+  registerChat, registerChats, getRegisteredChat, ensureChatKey, getCachedChatKey,
   dropChat, createGroupKeyWraps, rekeyGroupKeyFor, setCachedChatKey
 } from "../../utils/cryptoKeys.js"
 
@@ -92,6 +92,7 @@ const ChatState = ({ children }) => {
       setChat(chats)
       // Non-blocking: publish group keys for any legacy groups (one-time)
       migrateLegacyGroups(chats).catch(() => { /* already logged */ });
+      healGroupKeys(chats).catch(() => { /* already logged */ });
     } catch (e) {
       if (e?.response?.status === 404) {
         setChat([])
@@ -115,6 +116,54 @@ const ChatState = ({ children }) => {
     const updated = res.data?.data;
     if (updated) registerChat(updated);
     return updated;
+  };
+
+  // Auto-heal group keys: if I have the group key, wrap it for any group member
+  // who has a published publicKey but is missing from c.groupKeys or has a stale wrap
+  // (e.g. joined later, registered keys after group creation, or logged in on new device).
+  const healGroupKeys = async (chats, forceTargetId = null) => {
+    const myId = String(user?._id || "");
+    if (!myId) return;
+    const list = Array.isArray(chats) ? chats : (chats ? [chats] : []);
+    for (const c of list) {
+      if (!c || !c.isGroup) continue;
+      try {
+        let chatKey = getCachedChatKey(c._id);
+        if (!chatKey) {
+          chatKey = await ensureChatKey(c._id, myId);
+        }
+        if (!chatKey) continue; // I don't have the group key, cannot wrap for others
+
+        const existingWraps = c.groupKeys || {};
+        const missingMembers = (c.members || []).filter((m) => {
+          const mid = String(m?._id ?? m?.id ?? (typeof m === 'string' ? m : ''));
+          if (!mid || mid === myId) return false;
+          const pub = m?.publicKey;
+          if (!pub) return false;
+          if (forceTargetId && String(forceTargetId) === mid) return true;
+          const wrap = existingWraps[mid];
+          if (!wrap || !wrap.key) return true;
+          if (wrap.targetKey && wrap.targetKey !== pub) return true;
+          if (!wrap.targetKey) return true;
+          return false;
+        });
+
+        if (missingMembers.length > 0) {
+          console.log(`[E2EE] Auto-healing group keys for chat "${c.chatname || c._id}" - targets:`, missingMembers.map(m => m.name || m._id));
+          const { groupKeys: newWraps } = await rekeyGroupKeyFor(c, missingMembers, myId);
+          if (newWraps && Object.keys(newWraps).length > 0) {
+            const updated = await putGroupKeys(c._id, newWraps, true);
+            if (updated) {
+              registerChat(updated);
+              setChat(prevChats => (prevChats || []).map(item => item._id === c._id ? { ...item, ...updated } : item));
+              setSelectedchat(prev => (prev?._id === c._id ? { ...prev, ...updated } : prev));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[E2EE] Group key healing error:", err?.message);
+      }
+    }
   };
 
   // One-time E2EE migration: groups created before key distribution have no
@@ -498,7 +547,7 @@ const ChatState = ({ children }) => {
       settingmodal, setSettingmodal, UpdateIcon, Renamegroup, Addadmin,
       RemoveFromGroup, AddinGroup, addmodal, setAddmodal, LeaveGroup, DeleteGroup,
       yesmodal, setYesmodal, RemoveAdmin, handleBlock, handleUnblock, modalType, setModalType,
-      isAuthReady
+      isAuthReady, healGroupKeys, putGroupKeys
     }}>
       {children}
     </chatContext.Provider>

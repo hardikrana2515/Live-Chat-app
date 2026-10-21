@@ -7,9 +7,11 @@ import messageContext from '../contexts/MessageContext/messageContext';
 import chatContext from '../contexts/ChatContext/chatcontext';
 import AudioMessage from './AudioMessage';
 import { decryptMessage } from '../utils/EncryptionUtils';
+import { getCachedChatKey } from '../utils/cryptoKeys.js';
 import PollMessage from './PollMessage';
 import EncryptedAttachment from './EncryptedAttachment';
 import EditMessageModal from './EditMessageModal';
+import SocketContext from '../contexts/Socket.io.Context/socket.Context.js';
 
 const formatCallDuration = (seconds) => {
     if (!seconds || seconds <= 0) return '0:00';
@@ -36,9 +38,32 @@ const MenuRow = ({ icon, label, danger, onClick }) => (
 const AllchatMsg = ({ onStartCall }) => {
     const { AllMessages, Allmsg, msg, setMsg, DeleteMsg, Del, setDel, ReadBy, ReactToMsg, EditMsg, editingMsg, setEditingMsg, setDelForEveryone, hasMore, LoadOlderMessages, loadingOlder } = useContext(messageContext);
     const { user, selectedchat, isAuthReady, MakeChat, Allchat } = useContext(chatContext); // Use isAuthReady
+    const { socket } = useContext(SocketContext);
 
     const [reactionPopup, setReactionPopup] = useState(null); // stores messageId of open popup
     const [ctxMenu, setCtxMenu] = useState(null); // { x, y, m } right-click menu
+    const [, setKeyVersion] = useState(0); // re-render when E2EE keys finish deriving
+
+    // Listen for keys becoming ready so [Unable to decrypt message] re-renders to decrypted text
+    useEffect(() => {
+        const onKeyReady = (e) => {
+            const cid = e.detail?.chatId;
+            if (!selectedchat?._id || !cid || String(cid) === String(selectedchat._id)) {
+                setKeyVersion((v) => v + 1);
+            }
+        };
+        window.addEventListener('talkyy:key-ready', onKeyReady);
+        return () => window.removeEventListener('talkyy:key-ready', onKeyReady);
+    }, [selectedchat?._id]);
+
+    // If viewing a group chat and my key is missing or not cached/unwrapped, request it from peers
+    useEffect(() => {
+        if (!selectedchat?._id || !selectedchat?.isGroup || !user?._id) return;
+        const key = getCachedChatKey(selectedchat._id);
+        if (!key && socket?.current) {
+            socket.current.emit("request group key", { chatId: selectedchat._id, userId: user._id });
+        }
+    }, [selectedchat?._id, selectedchat?.isGroup, selectedchat?.groupKeys, user?._id, socket]);
 
     const Endmsg = useRef(null);
     const scrollRef = useRef(null); // scroll container
@@ -167,6 +192,7 @@ const AllchatMsg = ({ onStartCall }) => {
                                     <div className="w-8 sm:w-9 rounded-full">
                                         <img
                                             alt={sender.name || "User"}
+                                            loading="lazy"
                                             src={
                                                 sender.avtar?.startsWith("data:image")
                                                     ? sender.avtar
@@ -197,7 +223,9 @@ const AllchatMsg = ({ onStartCall }) => {
                                         } p-2 max-w-xs sm:max-w-md`}
                                     >
                                         {(() => {
-                                            const fileUrl = `http://localhost:4000${m.media}`;
+                                            const fileUrl = m.media.startsWith('http') || m.media.startsWith('data:')
+                                                ? m.media
+                                                : `http://localhost:4000${m.media}`;
                                             let fileExt = m.media.split('.').pop().toLowerCase();
                                             if (fileExt === 'enc') {
                                                 const parts = m.media.split('.');
@@ -245,9 +273,11 @@ const AllchatMsg = ({ onStartCall }) => {
                                                             <div className="min-w-0 flex-1">
                                                                 <div className="flex items-center gap-1.5">
                                                                     <span className="text-xs sm:text-sm font-semibold truncate text-[var(--c-text)]">
-                                                                        {isMissed
-                                                                            ? `Missed ${isVideo ? 'video' : 'voice'} call`
-                                                                            : `${isVideo ? 'Video' : 'Voice'} call`}
+                                                                        {callLog.isGroup
+                                                                            ? `Group ${isVideo ? 'video' : 'voice'} call`
+                                                                            : isMissed
+                                                                                ? `Missed ${isVideo ? 'video' : 'voice'} call`
+                                                                                : `${isVideo ? 'Video' : 'Voice'} call`}
                                                                     </span>
                                                                 </div>
                                                                 <p className="text-[11px] text-[var(--c-text-2)] mt-0.5">
@@ -256,13 +286,13 @@ const AllchatMsg = ({ onStartCall }) => {
                                                             </div>
                                                         </div>
 
-                                                        {onStartCall && !selectedchat?.isGroup && (
+                                                        {onStartCall && (
                                                             <button
                                                                 onClick={() => onStartCall(callLog.type || 'video')}
                                                                 className="mt-2.5 w-full py-1.5 px-3 rounded-xl bg-[var(--c-hover)] hover:bg-[var(--c-primary)] hover:text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5 border border-[var(--c-line)] text-[var(--c-text)]"
                                                             >
                                                                 {isVideo ? <IoVideocam className="text-xs" /> : <IoCall className="text-xs" />}
-                                                                <span>Call back</span>
+                                                                <span>{selectedchat?.isGroup ? "Start Group Call" : "Call back"}</span>
                                                             </button>
                                                         )}
                                                     </div>
@@ -288,6 +318,7 @@ const AllchatMsg = ({ onStartCall }) => {
                                                                     <img
                                                                         src={contact.avtar.startsWith('data:') ? contact.avtar : `http://localhost:4000${contact.avtar}`}
                                                                         alt={contact.name}
+                                                                        loading="lazy"
                                                                         className="w-full h-full object-cover"
                                                                     />
                                                                 ) : (
@@ -407,7 +438,7 @@ const AllchatMsg = ({ onStartCall }) => {
             {ctxMenu && (
                 (() => {
                     const m = ctxMenu.m;
-                    const isOwn = (m.Sender?._id || m.Sender) === user._id;
+                    const isOwn = String(m.Sender?._id || m.Sender) === String(user?._id);
                     const withinOneHour = m.createdAt
                         ? (Date.now() - new Date(m.createdAt).getTime()) < 60 * 60 * 1000
                         : false;

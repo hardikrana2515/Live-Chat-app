@@ -12,11 +12,11 @@ const sendMessage = AsyncHandler(async (req, res) => {
   const formData = req.file;
 
   // Check if it's a Poll, Text, or Media message
-  if (!message && !formData && !req.body.poll) {
-    // throw new ApiError(400, "Message or Media Required !!");
+  const hasText = typeof message === "string" && message.trim().length > 0;
+  if (!hasText && !formData && !req.body.poll) {
     return res
-      .status(401)
-      .json(new ApiResponse(401, null, "Message, Media, or Poll Required !"));
+      .status(400)
+      .json(new ApiResponse(400, null, "Message, Media, or Poll Required !"));
   }
 
   const userId = req.user._id;
@@ -270,6 +270,15 @@ const reactToMessage = AsyncHandler(async (req, res) => {
     return res.status(404).json(new ApiResponse(404, null, "Message not found"));
   }
 
+  if (message.isDeleted) {
+    return res.status(400).json(new ApiResponse(400, null, "Cannot react to a deleted message"));
+  }
+
+  const chatDoc = await ChatRoom.findById(message.chatId);
+  if (!chatDoc || !chatDoc.members.some((m) => String(m) === String(userId))) {
+    return res.status(403).json(new ApiResponse(403, null, "You are not a member of this chat"));
+  }
+
   const existingReactionIndex = message.reactions.findIndex(
     (r) => r.user.toString() === userId.toString()
   );
@@ -311,6 +320,19 @@ const votePoll = AsyncHandler(async (req, res) => {
   const message = await Message.findById(messageId);
   if (!message || !message.poll) {
     return res.status(404).json(new ApiResponse(404, null, "Poll not found"));
+  }
+
+  if (message.isDeleted) {
+    return res.status(400).json(new ApiResponse(400, null, "Cannot vote on a deleted poll"));
+  }
+
+  if (typeof optionIndex !== "number" || optionIndex < 0 || optionIndex >= message.poll.options.length) {
+    return res.status(400).json(new ApiResponse(400, null, "Invalid poll option"));
+  }
+
+  const chatDoc = await ChatRoom.findById(message.chatId);
+  if (!chatDoc || !chatDoc.members.some((m) => String(m) === String(userId))) {
+    return res.status(403).json(new ApiResponse(403, null, "You are not a member of this chat"));
   }
 
   // Remove user vote from all options (Single choice poll for now, or toggle)

@@ -15,6 +15,7 @@ const ChatBox = ({ onStartCall }) => {
     const { user, setUser, selectedchat, setSelectedchat, setChatmodal, setSettingmodal, setYesmodal, handleBlock, handleUnblock, setModalType } = useContext(chatContext)
     const { socket, onlineUsers } = useContext(SocketContext);
     const [isTyping, setIsTyping] = useState(false);
+    const [activeGroupCall, setActiveGroupCall] = useState(null); // { isActive, callType, participantCount }
 
     const isOnline = (userId) => onlineUsers.includes(userId);
 
@@ -33,9 +34,26 @@ const ChatBox = ({ onStartCall }) => {
             if (selectedchat._id === room) setIsTyping(false);
         });
 
+        const handleGroupCallStatus = (status) => {
+            if (status.chatId === selectedchat?._id) {
+                setActiveGroupCall(status);
+            }
+        };
+
+        socket.current.on("groupCallActiveStatus", handleGroupCallStatus);
+
+        if (selectedchat?.isGroup) {
+            socket.current.emit("checkGroupCallStatus", selectedchat._id);
+        } else {
+            setActiveGroupCall(null);
+        }
+
         return () => {
-            socket.current.off("typing");
-            socket.current.off("stop typing");
+            if (socket.current) {
+                socket.current.off("typing");
+                socket.current.off("stop typing");
+                socket.current.off("groupCallActiveStatus", handleGroupCallStatus);
+            }
         }
     }, [selectedchat, socket]);
 
@@ -118,25 +136,21 @@ const ChatBox = ({ onStartCall }) => {
 
                 {/* Header Actions */}
                 <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                    {/* Call Buttons (1:1 direct chats) */}
-                    {!selectedchat.isGroup && (
-                        <>
-                            <button
-                                onClick={() => onStartCall?.('audio')}
-                                className="p-2 rounded-xl bg-[var(--c-surface)] hover:bg-[var(--c-raised)] border border-[var(--c-line)] text-[var(--c-text-2)] hover:text-[var(--c-text)] transition-all shadow-sm"
-                                title="Start Voice Call"
-                            >
-                                <IoCall className="text-base" />
-                            </button>
-                            <button
-                                onClick={() => onStartCall?.('video')}
-                                className="p-2 rounded-xl bg-[var(--c-surface)] hover:bg-[var(--c-raised)] border border-[var(--c-line)] text-[var(--c-text-2)] hover:text-[var(--c-text)] transition-all shadow-sm"
-                                title="Start Video Call"
-                            >
-                                <IoVideocam className="text-base" />
-                            </button>
-                        </>
-                    )}
+                    {/* Call Buttons (Voice and Video for 1:1 and Groups) */}
+                    <button
+                        onClick={() => onStartCall?.('audio')}
+                        className="p-2 rounded-xl bg-[var(--c-surface)] hover:bg-[var(--c-raised)] border border-[var(--c-line)] text-[var(--c-text-2)] hover:text-[var(--c-text)] transition-all shadow-sm"
+                        title={selectedchat.isGroup ? "Start Group Voice Call" : "Start Voice Call"}
+                    >
+                        <IoCall className="text-base" />
+                    </button>
+                    <button
+                        onClick={() => onStartCall?.('video')}
+                        className="p-2 rounded-xl bg-[var(--c-surface)] hover:bg-[var(--c-raised)] border border-[var(--c-line)] text-[var(--c-text-2)] hover:text-[var(--c-text)] transition-all shadow-sm"
+                        title={selectedchat.isGroup ? "Start Group Video Call" : "Start Video Call"}
+                    >
+                        <IoVideocam className="text-base" />
+                    </button>
 
                     {/* Chat Drawer Trigger */}
                     <div className="drawer drawer-end z-40">
@@ -229,6 +243,22 @@ const ChatBox = ({ onStartCall }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Live Group Call Banner */}
+            {selectedchat.isGroup && activeGroupCall?.isActive && (
+                <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-4 py-2.5 flex items-center justify-between z-10 animate-fadeIn">
+                    <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>Live Group {activeGroupCall.callType === 'video' ? 'Video' : 'Voice'} Call ({activeGroupCall.participantCount || 1} connected)</span>
+                    </div>
+                    <button
+                        onClick={() => onStartCall?.(activeGroupCall.callType || 'video')}
+                        className="px-3.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow transition"
+                    >
+                        Join Call
+                    </button>
+                </div>
+            )}
 
             {/* Message Area */}
             <div className="flex-1 overflow-hidden min-h-0 flex flex-col">

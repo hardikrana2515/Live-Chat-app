@@ -19,7 +19,7 @@ import ShareContactModal from './ShareContactModal';
 const Message = ({ onStartCall }) => {
 
     const { Send, msg, setMsg, AllMessages, setAllmsg, Allmsg } = useContext(messageContext);
-    const { user, selectedchat, setChat } = useContext(chatContext);
+    const { user, selectedchat, setChat, healGroupKeys } = useContext(chatContext);
     const { socket, isConnected } = useContext(SocketContext);
 
     const [message, setMessage] = useState('');
@@ -36,7 +36,7 @@ const Message = ({ onStartCall }) => {
     const documentInputRef = useRef(null);
     const galleryInputRef = useRef(null);
     const audioInputRef = useRef(null);
-    // const typingTimeoutRef = useRef(null); // Not using ref for now to keep it simple with window timeout as implemented below
+    const typingTimeoutRef = useRef(null); // Replaced window.typingTimeout (Issue F1)
 
     // Close emoji picker + attachment menu on ANY outside click (chat area,
     // header, sidebar...). A fixed backdrop can't be used here: the toolbar's
@@ -177,24 +177,23 @@ const Message = ({ onStartCall }) => {
 const handleInputChange = (e) => {
     setMessage(e.target.value);
 
-    if (!socket.current) return;
+    if (!socket.current || !selectedchat?._id) return;
+
+    // Don't emit typing indicator to blocked users (Issue §6.1)
+    if (!selectedchat.isGroup) {
+        const otherMember = selectedchat.members?.find(m => String(m?._id || m) !== String(user?._id));
+        const otherId = otherMember?._id || otherMember;
+        if (otherId && user?.blockedUsers?.some(b => String(b?._id || b) === String(otherId))) return;
+    }
 
     if (!typing) {
         setTyping(true);
         socket.current.emit("typing", selectedchat._id);
     }
 
-    let lastTypingTime = new Date().getTime();
-    var timerLength = 3000;
-
-    // Simple debounce without ref for now to avoid ref import issues if I mess it up, 
-    // but actually standard way is just setting a timeout. 
-    // The issue with the previous logic I thought of (setTimeout inside) is that it captures 'typing' state from closure?
-    // Let's use written logic from similar apps.
-
-    // Actually, let's use a simpler timeout logic:
-    if (window.typingTimeout) clearTimeout(window.typingTimeout);
-    window.typingTimeout = setTimeout(() => {
+    // Debounce stop-typing using a ref instead of window global (Issue F1)
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
         if (socket.current) socket.current.emit("stop typing", selectedchat._id);
         setTyping(false);
     }, 3000);
@@ -235,6 +234,11 @@ const audioStreamRef = useRef(null);
 
 useEffect(() => {
     return () => {
+        // Clean up typing timeout on unmount (Issue F1)
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = null;
+        }
         if (audioStreamRef.current) {
             audioStreamRef.current.getTracks().forEach(track => track.stop());
             audioStreamRef.current = null;
@@ -289,10 +293,15 @@ const stopRecording = () => {
 
 
 const sendMessageRaw = async (msgText, file) => {
-    if (!msgText && !file) {
+    const text = typeof msgText === 'string' ? msgText.trim() : '';
+    if (!text && !file) {
         return toast.warn("Message cannot be empty");
     }
     if (socket.current) socket.current.emit("stop typing", selectedchat._id);
+
+    if (selectedchat?.isGroup && healGroupKeys) {
+        healGroupKeys(selectedchat).catch(() => {});
+    }
 
     let fileToSend = file;
     if (file) {
@@ -307,7 +316,7 @@ const sendMessageRaw = async (msgText, file) => {
 
     // Encrypt text with the conversation key (async: derives the chat key
     // on first use) — falls back to legacy encryption when keys are absent
-    const encryptedMessage = await encryptMessage(msgText, selectedchat);
+    const encryptedMessage = text ? await encryptMessage(text, selectedchat) : "";
     try {
         const sentMsg = await Send(encryptedMessage, fileToSend, selectedchat._id);
         if (socket.current) {
@@ -384,15 +393,28 @@ return (
 
         {/* Input Dock Toolbar */}
         <div className="p-3 sm:p-4 bg-[var(--c-panel-95)] backdrop-blur-md border-t border-[var(--c-line)]">
-            {selectedchat && !selectedchat.isGroup && user.blockedUsers?.includes(selectedchat.members.find(m => m._id !== user._id)?._id) ? (
-                <div className="flex items-center justify-center p-3 bg-[var(--c-danger-10)] rounded-xl border border-[var(--c-danger-40)] text-center">
-                    <p className="text-[var(--c-danger)] font-medium text-xs sm:text-sm">You have blocked this contact. Unblock to send messages.</p>
-                </div>
-            ) : (
-                <form
-                    className="flex items-center gap-2"
-                    onSubmit={handleSend}
-                >
+            {(() => {
+                const otherMember = selectedchat && !selectedchat.isGroup
+                    ? selectedchat.members?.find(m => String(m?._id || m) !== String(user?._id))
+                    : null;
+                const otherId = otherMember?._id || otherMember;
+                const isBlocked = otherId && user?.blockedUsers?.some(b => String(b?._id || b) === String(otherId));
+
+                if (isBlocked) {
+                    return (
+                        <div className="flex items-center justify-center p-3 bg-[var(--c-danger-10)] rounded-xl border border-[var(--c-danger-40)] text-center">
+                            <p className="text-[var(--c-danger)] font-medium text-xs sm:text-sm">You have blocked this contact. Unblock to send messages.</p>
+                        </div>
+                    );
+                }
+
+                const canSend = Boolean((message && message.trim()) || media);
+
+                return (
+                    <form
+                        className="flex items-center gap-2"
+                        onSubmit={handleSend}
+                    >
                     {/* Input Container */}
                     <div className="flex items-center gap-2 flex-1 px-3.5 py-2 rounded-xl bg-[var(--c-canvas-80)] border border-[var(--c-line)] focus-within:border-[var(--c-primary)] focus-within:ring-1 focus-within:ring-[var(--ring-brand)] transition-all">
                         {/* Emoji Picker Trigger */}
@@ -499,7 +521,7 @@ return (
 
                     {/* Mic / Send Button */}
                     <div className="flex items-center">
-                        {!message && !media ? (
+                        {!canSend ? (
                             <button
                                 type="button"
                                 onClick={recording ? stopRecording : startRecordingSafe}
@@ -522,7 +544,8 @@ return (
                         )}
                     </div>
                 </form>
-            )}
+                );
+            })()}
         </div>
         {showPollModal && <CreatePollModal onClose={() => setShowPollModal(false)} />}
         <CameraModal

@@ -58,6 +58,7 @@ const EncryptedAttachment = ({ url, type, alt, chatId }) => {
             <img
                 src={decryptedUrl}
                 alt={alt || "Encrypted Media"}
+                loading="lazy"
                 className="rounded-md max-w-full max-h-64 object-contain"
             />
         );

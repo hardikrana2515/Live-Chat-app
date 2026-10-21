@@ -265,9 +265,17 @@ const addtoGroup = AsyncHandler(async (req, res) => {
               ))
   }
 
-  const newMembers = UserIdlist.filter(
-    (userId) => !Chat.members.map(String).includes(userId.toString())
-  );
+  const memberList = Array.isArray(UserIdlist)
+    ? UserIdlist
+    : (typeof UserIdlist === "string" ? [UserIdlist] : []);
+
+  if (memberList.length === 0) {
+    return res.status(400).json(new ApiResponse(400, null, "UserIdlist must be a non-empty list of user IDs"));
+  }
+
+  const existingMemberStrs = (Chat.members || []).map((m) => (m?._id || m).toString());
+  const uniqueCandidates = [...new Set(memberList.map((u) => (u?._id || u).toString()))];
+  const newMembers = uniqueCandidates.filter((uid) => !existingMemberStrs.includes(uid));
 
   if (newMembers.length === 0) {
     // throw new ApiError(409, "All users are already group members.");
@@ -505,9 +513,15 @@ const DeleteGroup = AsyncHandler(async (req, res) => {
     return res.status(403)
               .json(new ApiResponse(403, null, "You are not a member of this chat"));
   }
-  if (Chat.creator && Chat.creator.toString() !== req.user._id.toString()) {
-    return res.status(405)
-              .json(new ApiResponse(405, null, "Only group creator can delete the group"));
+  const myIdStr = req.user._id.toString();
+  const isCreator = Chat.creator && (Chat.creator?._id || Chat.creator).toString() === myIdStr;
+  const isAdmin = Chat.admins && Chat.admins.some((id) => (id?._id || id).toString() === myIdStr);
+  const creatorStillMember = Chat.creator && Chat.members.some((m) => (m?._id || m).toString() === (Chat.creator?._id || Chat.creator).toString());
+
+  if (!isCreator) {
+    if (creatorStillMember || !isAdmin) {
+      return res.status(405).json(new ApiResponse(405, null, "Only group creator can delete the group"));
+    }
   }
 
   // Notify members before the chat is removed (members list is needed for routing)
@@ -588,14 +602,19 @@ const UpdateGroupKeys = AsyncHandler(async (req, res) => {
     return res.status(400).json(new ApiResponse(400, null, "groupKeys must be an object"));
   }
 
-  // Validate shape: { userId: { by, byKey, key } } — all strings, bounded size
+  // Validate shape: { userId: { by, byKey, key, targetKey } } — all strings, bounded size
   const clean = {};
   for (const [uid, wrap] of Object.entries(groupKeys)) {
     if (!wrap || typeof wrap !== "object") continue;
-    const { by, byKey, key } = wrap;
+    const { by, byKey, key, targetKey } = wrap;
     if (typeof by !== "string" || typeof byKey !== "string" || typeof key !== "string") continue;
     if (byKey.length > 500 || key.length > 4000) continue;
-    clean[uid] = { by, byKey, key };
+    clean[uid] = {
+      by,
+      byKey,
+      key,
+      ...(typeof targetKey === "string" && targetKey.length < 500 ? { targetKey } : {})
+    };
   }
 
   if (merge && chat.groupKeys && typeof chat.groupKeys === "object") {

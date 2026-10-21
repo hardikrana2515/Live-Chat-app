@@ -67,7 +67,7 @@ const Yesmodal = () => {
     if (!selectedchat || !user) return null;
 
     return (
-        <div className="fixed inset-0 bg-[var(--c-overlay)] backdrop-blur-md z-50 flex items-center justify-center px-4">
+        <div className="fixed inset-0 bg-[var(--c-overlay)] backdrop-blur-md z-[70] flex items-center justify-center px-4">
             <div className="bg-[var(--c-surface)]  text-[var(--c-text)]  w-full max-w-md rounded-xl p-6 shadow-2xl relative transition-all duration-300 ease-in-out">
 
                 {/* Close Button */}

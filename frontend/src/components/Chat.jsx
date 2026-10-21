@@ -23,7 +23,7 @@ export const isChatUnread = (c, currentUserId) => {
 };
 
 const Chat = ({ filter = 'all' }) => {
-    const { user, chat, Allchat, setSelectedchat, selectedchat, setChat } = useContext(chatContext)
+    const { user, chat, Allchat, setSelectedchat, selectedchat, setChat, healGroupKeys } = useContext(chatContext)
     const { socket, onlineUsers, isConnected } = useContext(SocketContext)
 
     useEffect(() => {
@@ -158,22 +158,41 @@ const Chat = ({ filter = 'all' }) => {
             }
         };
 
+        const handleGroupKeyRequested = async ({ chatId, userId: reqUid }) => {
+            if (!chatId || String(reqUid) === String(user?._id)) return;
+            const targetChat = (chat || []).find(c => c._id === chatId) || (selectedchat?._id === chatId ? selectedchat : null);
+            if (targetChat && healGroupKeys) {
+                await healGroupKeys(targetChat, reqUid);
+            }
+        };
+
+        const handleLocalKeyRequest = (e) => {
+            const { chatId, userId } = e.detail || {};
+            if (chatId && socket?.current) {
+                socket.current.emit("request group key", { chatId, userId: userId || user?._id });
+            }
+        };
+        window.addEventListener('talkyy:request-group-key', handleLocalKeyRequest);
+
         socket.current.on("message received", handleNewMessage);
         socket.current.on("message edited", handleMessageEdited);
         socket.current.on("message deleted", handleMessageDeleted);
         socket.current.on("group updated", handleGroupUpdated);
         socket.current.on("messages read", handleMessagesRead);
+        socket.current.on("group key requested", handleGroupKeyRequested);
 
         return () => {
+            window.removeEventListener('talkyy:request-group-key', handleLocalKeyRequest);
             if (socket.current) {
                 socket.current.off("message received", handleNewMessage);
                 socket.current.off("message edited", handleMessageEdited);
                 socket.current.off("message deleted", handleMessageDeleted);
                 socket.current.off("group updated", handleGroupUpdated);
                 socket.current.off("messages read", handleMessagesRead);
+                socket.current.off("group key requested", handleGroupKeyRequested);
             }
         };
-    }, [socket, isConnected, setChat, Allchat, setSelectedchat, selectedchat, user]);
+    }, [socket, isConnected, setChat, Allchat, setSelectedchat, selectedchat, user, healGroupKeys, chat]);
 
 
     const getOtherUser = (loggedInUser, members) => {
@@ -250,9 +269,11 @@ const Chat = ({ filter = 'all' }) => {
                                 <IoCall className="text-[var(--c-link)] shrink-0 text-xs" />
                             )}
                             <span className={isMissed ? 'text-[var(--c-danger)] font-medium truncate' : 'text-[var(--c-text)] truncate'}>
-                                {isMissed
-                                    ? `Missed ${isVideo ? 'video' : 'voice'} call`
-                                    : `${isVideo ? 'Video' : 'Voice'} call`}
+                                {callLog.isGroup
+                                    ? `Group ${isVideo ? 'video' : 'voice'} call`
+                                    : isMissed
+                                        ? `Missed ${isVideo ? 'video' : 'voice'} call`
+                                        : `${isVideo ? 'Video' : 'Voice'} call`}
                             </span>
                         </span>
                     );

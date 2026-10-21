@@ -90,7 +90,7 @@ const userLogin = AsyncHandler(async (req, res) => {
 
   const Authtoken = await user.generateAuthToken();
 
-  res.cookie("token", Authtoken, { httpOnly: true });
+  res.cookie("token", Authtoken, { httpOnly: true, sameSite: "lax" });
 
   const loggedinUser = await User.findById(user._id).select("-password");
   if (Authtoken) {
@@ -395,6 +395,16 @@ const sendRequest = AsyncHandler(async (req, res) => {
 
   if (existingRequest) {
     throw new ApiError(400, "Request already sent");
+  }
+
+  // Check if the other user already sent ME a request (Issue §3.3)
+  const reverseRequest =
+    req.user.friendRequests &&
+    req.user.friendRequests.find(
+      (item) => item.sender && item.sender.toString() === targetUser._id.toString()
+    );
+  if (reverseRequest) {
+    throw new ApiError(400, "This user already sent you a request. Check your pending requests.");
   }
 
   targetUser.friendRequests.push({ sender: req.user._id, status: "pending" });

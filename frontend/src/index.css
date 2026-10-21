@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 @import "tailwindcss";
 @plugin "daisyui" { themes: dark --default; }
 
@@ -148,6 +148,215 @@
   --c-accent-10: rgba(2, 132, 199, 0.1);
   --c-accent-20: rgba(2, 132, 199, 0.2);
   --c-online-30: rgba(22, 163, 74, 0.3);
+}
+
+/* ============================================================
+   LANDING PAGE (PUBLIC MARKETING PAGE)
+   Self-contained warm-paper palette so the public page keeps its
+   own art direction no matter which app theme the visitor saved.
+   Scoped to .landing-root — the authenticated app is unaffected.
+   ============================================================ */
+
+.landing-root {
+  overflow-x: clip;
+  --c-warm-paper: #F7F5EF;        /* Main marketing-page background */
+  --c-primary-ink: #191B20;       /* Headings and body text */
+  --c-secondary-ink: #51545C;     /* Secondary text */
+  --c-cobalt: #2858E8;            /* Primary actions, links, selected states */
+  --c-deep-blue: #173BB5;         /* Hover and pressed states */
+  --c-soft-blue-surface: #E8EEFF; /* Supporting accent */
+  --c-divider: #DCDAD3;           /* Fine divider lines */
+  --c-ivory: #EFE8D8;             /* Warm ivory (sculpture material) */
+  --c-dark-section-bg: #191D25;   /* Dark section backgrounds */
+  --c-dark-section-text: #F7F5EF; /* Dark section text */
+  --c-dark-surface: #20252F;      /* Solid card on dark sections */
+  --c-dark-text-2: #AEB4C0;       /* Secondary text on dark sections */
+  --c-mint: #B9D9C7;              /* Quiet mint accent (supporting only) */
+
+  /* Map the generic app roles onto the landing palette */
+  --c-text: #191B20;
+  --c-text-2: #51545C;
+  --c-text-3: #7a7d85;
+  --c-surface: #ffffff;
+  --c-panel: #ffffff;
+  --c-panel-95: rgba(255, 255, 255, 0.95);
+  --c-border: #dcdad3;
+  --c-line: #dcdad3;
+  --c-primary: #2858e8;
+  --c-primary-hover: #173bb5;
+  --c-on-primary: #ffffff;
+  --c-online: #16a34a;
+  --grad-brand: linear-gradient(135deg, #2858e8 0%, #173bb5 100%);
+
+  /* Spec: marketing body copy uses DM Sans; headings keep Space Grotesk.
+     Scoped here so the authenticated app keeps Inter. */
+  font-family: "DM Sans", var(--font-sans);
+
+  background: var(--c-warm-paper);
+  color: var(--c-primary-ink);
+}
+
+/* --- Landing buttons: modest radii, no pills, no glow --- */
+.landing-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 22px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background-color .16s ease, color .16s ease,
+              border-color .16s ease, transform .12s ease;
+}
+
+.landing-btn--primary {
+  background: var(--c-cobalt);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(40, 88, 232, 0.16);
+  transition: background-color .16s ease, color .16s ease,
+              border-color .16s ease, transform .16s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow .16s ease;
+}
+.landing-btn--primary:hover {
+  background: var(--c-deep-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(40, 88, 232, 0.24);
+}
+.landing-btn--primary:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(40, 88, 232, 0.2);
+}
+
+.landing-btn--ghost {
+  background: transparent;
+  border-color: var(--c-divider);
+  color: var(--c-primary-ink);
+  transition: background-color .16s ease, color .16s ease,
+              border-color .16s ease, transform .16s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow .16s ease;
+}
+.landing-btn--ghost:hover {
+  background: #ffffff;
+  border-color: var(--c-primary-ink);
+  transform: translateY(-1.5px);
+  box-shadow: 0 2px 8px rgba(25, 27, 32, 0.06);
+}
+.landing-btn--ghost:active {
+  transform: translateY(0);
+}
+
+.landing-btn--quiet {
+  background: transparent;
+  color: var(--c-secondary-ink);
+  padding: 0 6px;
+}
+.landing-btn--quiet:hover { color: var(--c-primary-ink); }
+
+/* Ghost button on dark panels. Must be a modifier, not a text-* utility:
+   the unlayered .landing-btn--ghost color would win over any utility
+   and render invisible text on #191D25. */
+.landing-btn--on-dark {
+  color: var(--c-dark-section-text);
+  border-color: rgba(247, 245, 239, 0.28);
+}
+.landing-btn--on-dark:hover {
+  background: rgba(247, 245, 239, 0.07);
+  border-color: rgba(247, 245, 239, 0.85);
+  color: #ffffff;
+}
+
+/* --- Section rhythm --- */
+.landing-section { padding: 88px 0; }
+@media (min-width: 768px) { .landing-section { padding: 120px 0; } }
+@media (min-width: 1024px) { .landing-section { padding: 152px 0; } }
+
+/* Hero keeps a tighter top edge: the diorama is taller than the old
+   sculpture, so the default 152px would push the fold too far down. */
+.landing-section--hero { padding-top: 64px; }
+@media (min-width: 768px) { .landing-section--hero { padding-top: 84px; } }
+
+.landing-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-cobalt);
+}
+/* Same-element modifier (not a utility) so it also wins on dark panels:
+   unlayered .landing-eyebrow would otherwise override text-* utilities. */
+.landing-eyebrow.landing-eyebrow--dark { color: #9FB2F5; }
+
+/* --- Signature sculpture: interlocking rings --- */
+.sculpture {
+  perspective: 1000px;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+.sculpture__stage {
+  position: relative;
+  width: min(340px, 78%);
+  aspect-ratio: 1 / 1;
+  transform-style: preserve-3d;
+  transition: transform .5s cubic-bezier(.22, .61, .36, 1);
+  will-change: transform;
+}
+
+.sculpture__spin {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  animation: sculptureSpin 34s linear infinite;
+}
+
+.sculpture__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 20px solid var(--c-cobalt);
+  box-shadow: 0 18px 40px rgba(23, 59, 181, 0.18);
+  backface-visibility: visible;
+}
+
+.sculpture__ring--a { transform: rotateY(0deg) rotateX(14deg); }
+
+.sculpture__ring--b {
+  border-color: var(--c-ivory);
+  box-shadow: 0 18px 34px rgba(25, 29, 37, 0.16);
+  transform: rotateY(60deg) rotateX(14deg);
+}
+
+.sculpture__ring--c {
+  border-color: #9fb2f5;
+  transform: rotateY(120deg) rotateX(14deg);
+}
+
+.sculpture__ground {
+  position: absolute;
+  bottom: -6%;
+  left: 12%;
+  width: 76%;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(25, 29, 37, 0.16), rgba(25, 29, 37, 0));
+  filter: blur(2px);
+}
+
+@keyframes sculptureSpin {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sculpture__spin { animation: none; }
+  .sculpture__stage { transition: none; }
 }
 
 /* ============================================================
@@ -476,3 +685,502 @@ img { max-width: 100%; }
   text-transform: uppercase;
   color: var(--c-text-3);
 }
+
+/* ============================================================
+   LANDING PAGE — REDESIGN LAYER
+   ============================================================ */
+
+/* Sticky header must not cover anchored section headings */
+section[id] { scroll-margin-top: 88px; }
+
+html:has(.landing-root) { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html:has(.landing-root) { scroll-behavior: auto; }
+}
+
+/* --- Editorial section index: 01 ————— Eyebrow --- */
+.landing-index {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--c-cobalt);
+  font-variant-numeric: tabular-nums;
+}
+.landing-index__rule {
+  display: inline-block;
+  width: 40px;
+  height: 1px;
+  background: var(--c-divider);
+  vertical-align: middle;
+}
+.landing-section--dark .landing-index { color: #9FB2F5; }
+.landing-section--dark .landing-index__rule { background: rgba(247, 245, 239, 0.24); }
+
+/* --- Navbar: text links with a controlled active underline --- */
+.landing-nav-link {
+  position: relative;
+  padding: 6px 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--c-secondary-ink);
+  transition: color 0.16s ease;
+}
+.landing-nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--c-cobalt);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.landing-nav-link:hover { color: var(--c-primary-ink); }
+.landing-nav-link:hover::after { transform: scaleX(0.35); }
+.landing-nav-link.is-active { color: var(--c-primary-ink); }
+.landing-nav-link.is-active::after { transform: scaleX(1); }
+
+.landing-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.landing-header.is-stuck {
+  background: rgba(247, 245, 239, 0.98);
+  border-bottom-color: var(--c-divider);
+  box-shadow: 0 2px 14px rgba(25, 27, 32, 0.04);
+}
+
+/* --- Hero secondary link (replaces a generic ghost button) --- */
+.landing-arrow-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--c-primary-ink);
+  border-bottom: 1px solid var(--c-divider);
+  transition: border-color 0.16s ease, color 0.16s ease;
+}
+.landing-arrow-link svg { transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1); }
+.landing-arrow-link:hover { color: var(--c-cobalt); border-color: var(--c-cobalt); }
+.landing-arrow-link:hover svg { transform: translateY(3px); }
+
+/* --- Hand-drawn mint underline (quiet accent, spec-approved) --- */
+.landing-mark { position: relative; display: inline-block; white-space: nowrap; }
+.landing-mark svg {
+  position: absolute;
+  left: -1%;
+  bottom: -0.1em;
+  width: 102%;
+  height: 0.24em;
+  overflow: visible;
+}
+.landing-mark svg path {
+  stroke-dasharray: 240;
+  stroke-dashoffset: 240;
+  animation: drawUnderline 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.35s forwards;
+}
+
+@keyframes drawUnderline {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Subtle decorative drift for ambient dark patterns */
+@keyframes ambientDrift {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 0%; }
+}
+.ambient-pattern {
+  animation: ambientDrift 80s ease-in-out infinite;
+}
+
+/* Micro-interaction for reaction badges */
+.reaction-pop {
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.reaction-pop:hover {
+  transform: scale(1.12);
+}
+.reaction-pop:active {
+  transform: scale(0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-pattern { animation: none; }
+  .landing-mark svg path {
+    stroke-dashoffset: 0 !important;
+    animation: none !important;
+  }
+}
+
+/* ============================================================
+   HERO DIORAMA — CSS 3D conversation composition
+   Lightweight: no WebGL, no dependencies. Planes sit at real
+   translateZ depths so a single stage rotation produces true
+   parallax. Falls back to a static composition on reduced motion
+   and on touch devices (no pointer listeners are attached).
+   ============================================================ */
+.diorama { perspective: 1350px; perspective-origin: 50% 42%; width: 100%; overflow: hidden; }
+
+.diorama__tilt {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1.12;
+  transform-style: preserve-3d;
+  transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.diorama__sway {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  animation: dioramaSway 17s ease-in-out infinite alternate;
+}
+
+@keyframes dioramaSway {
+  from { transform: rotateY(-3deg) rotateX(1.5deg); }
+  to   { transform: rotateY(3deg) rotateX(-1deg); }
+}
+
+.diorama__plane {
+  position: absolute;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.diorama__face {
+  animation: planeIn 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
+  border-radius: 12px;
+}
+
+@keyframes planeIn {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Orbit line lying flat on the ground plane — spatial reference.
+   Positioned so the whole ring stays inside the stage (a dashed line
+   leaking into the next section reads as a rendering artefact). */
+.diorama__orbit {
+  position: absolute;
+  left: 0;
+  top: 30%;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  transform: rotateX(76deg) translateZ(-160px);
+  transform-style: preserve-3d;
+  pointer-events: none;
+}
+
+.diorama__ground {
+  position: absolute;
+  left: 16%;
+  bottom: 15%;
+  width: 68%;
+  height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(25, 29, 37, 0.18), rgba(25, 29, 37, 0));
+  filter: blur(3px);
+  transform: translateZ(-60px);
+}
+
+/* A shared "slip" material used by every floating plane */
+.slip {
+  background: #ffffff;
+  border: 1px solid var(--c-divider);
+  border-radius: 12px;
+  box-shadow: 0 18px 34px -22px rgba(25, 29, 37, 0.55);
+}
+.slip--paper { background: var(--c-warm-paper); }
+.slip--ink { background: var(--c-dark-section-bg); border-color: rgba(255, 255, 255, 0.12); color: var(--c-dark-section-text); }
+
+/* Small inline waveform used by the voice-note slip.
+   flex:1 + overflow keeps the duration label visible on narrow screens. */
+.waveform {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3px;
+  height: 22px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.waveform span {
+  display: block;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--c-cobalt);
+}
+
+/* ============================================================
+   HOW IT WORKS — dotted timeline (not a card grid)
+   Prefixed `lp-`: daisyUI ships its own `.steps`/`.step` stepper
+   component, and un-prefixed names would silently inherit it.
+   ============================================================ */
+.lp-steps { position: relative; display: grid; gap: 34px; }
+.lp-step { position: relative; }
+.lp-step::before {
+  content: "";
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid var(--c-cobalt);
+  z-index: 1;
+}
+.lp-step__num {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--c-cobalt);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 767px) {
+  .lp-steps { padding-left: 30px; }
+  .lp-steps::before {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 8px;
+    bottom: 8px;
+    border-left: 1px dashed var(--c-divider);
+  }
+  .lp-step::before { left: -30px; top: 4px; }
+}
+@media (min-width: 768px) {
+  .lp-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 48px; }
+  .lp-steps::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 5px;
+    border-top: 1px dashed var(--c-divider);
+  }
+  .lp-step { padding-top: 34px; }
+  .lp-step::before { left: 0; top: 0; }
+}
+
+/* ============================================================
+   FEATURE INDEX + FAQ
+   ============================================================ */
+.index-row {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  gap: 24px;
+  padding: 22px 0;
+  border-top: 1px solid var(--c-divider);
+  transition: background-color 0.18s ease;
+}
+.index-row:hover { background: rgba(232, 238, 255, 0.5); }
+.index-row:hover .index-row__glyph { border-color: var(--c-cobalt); color: var(--c-cobalt); }
+.index-row__glyph {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--c-divider);
+  border-radius: 10px;
+  color: var(--c-secondary-ink);
+  background: #ffffff;
+  transition: border-color 0.18s ease, color 0.18s ease;
+}
+@media (min-width: 640px) {
+  .index-row { grid-template-columns: 3rem minmax(0, 1fr) auto; align-items: start; }
+}
+
+.faq-item { border-bottom: 1px solid var(--c-divider); }
+.faq-item summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 0;
+  list-style: none;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--c-primary-ink);
+  transition: color 0.16s ease;
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary:hover { color: var(--c-cobalt); }
+.faq-item__icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--c-divider);
+  border-radius: 50%;
+  color: var(--c-secondary-ink);
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.faq-item[open] .faq-item__icon {
+  transform: rotate(45deg);
+  background: var(--c-soft-blue-surface);
+  border-color: transparent;
+  color: var(--c-cobalt);
+}
+.faq-item__body {
+  max-width: 64ch;
+  padding: 0 52px 24px 0;
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: var(--c-secondary-ink);
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .diorama__sway { animation: none; }
+  .diorama__face { animation: none; }
+  .diorama__tilt { transition: none; }
+}
+
+/* ============================================================
+   SCROLL-SYNCHRONIZED OVERLAPPING EDITORIAL PANELS
+   Pure scroll-position-driven transitions with zero transition lag
+   Solid opaque editorial panels stacking with zero ghosting
+   ============================================================ */
+
+.landing-panel {
+  position: relative;
+  scroll-margin-top: 4.5rem;
+  opacity: 1 !important;
+  will-change: transform;
+}
+
+/* Hero and Footer always have full entrance opacity by default */
+.landing-panel--z-hero,
+.landing-panel--z-footer {
+  opacity: 1 !important;
+}
+
+/* Stacking Order (Navbar is z-50, all panels stack strictly below it) */
+.landing-panel--z-hero { z-index: 10; }
+.landing-panel--z-conversations { z-index: 20; }
+.landing-panel--z-groups { z-index: 30; }
+.landing-panel--z-calls { z-index: 35; }
+.landing-panel--z-privacy { z-index: 40; }
+.landing-panel--z-faq { z-index: 42; }
+.landing-panel--z-cta { z-index: 45; }
+.landing-panel--z-footer { z-index: 46; position: relative; }
+
+/* Incoming overlapping panel styling (curved top edge and crisp layered depth shadow)
+   Zero negative margins to prevent unpredictable positioning or clipped content */
+.landing-panel--overlap {
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  box-shadow: 0 -12px 32px rgba(25, 27, 32, 0.05), 0 -1px 2px rgba(25, 27, 32, 0.03);
+  margin-top: 0 !important;
+}
+
+@media (min-width: 768px) {
+  .landing-panel--overlap {
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    box-shadow: 0 -16px 36px rgba(25, 27, 32, 0.06), 0 -1px 3px rgba(25, 27, 32, 0.03);
+    margin-top: 0 !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-panel--overlap {
+    border-top-left-radius: 32px;
+    border-top-right-radius: 32px;
+    box-shadow: 0 -20px 48px rgba(25, 27, 32, 0.08), 0 -1px 3px rgba(25, 27, 32, 0.04);
+    margin-top: 0 !important;
+  }
+
+  /* Sticky stacking is enabled on desktop viewports */
+  .landing-panel--sticky {
+    position: sticky;
+    top: var(--panel-sticky-top, 4rem);
+  }
+}
+
+/* Dark CTA specific overlap shadow for dramatic visual transition */
+.landing-panel--dark-overlap {
+  border-top-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 -24px 60px rgba(0, 0, 0, 0.45), 0 -2px 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Inner panel content: receives subtle scroll-linked scale when overlapped
+   Strictly transition: none so transform follows scroll progress 1:1 with zero lag
+   Opacity is 100% solid at all times to eliminate ghosting and translucent layer blending */
+.landing-panel__inner {
+  transform-origin: center 20%;
+  transform: scale(var(--panel-scale, 1));
+  opacity: 1 !important;
+  will-change: transform;
+  transition: none;
+}
+
+/* Footer inner always at normal rest state */
+.landing-panel--z-footer .landing-panel__inner {
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+/* Mobile & tablet viewports: natural vertical flow with no trapped sticky */
+@media (max-width: 1023px) {
+  .landing-panel {
+    position: relative !important;
+    top: auto !important;
+    opacity: 1 !important;
+    margin-top: 0 !important;
+  }
+  .landing-panel--sticky {
+    position: relative !important;
+    top: auto !important;
+  }
+  .landing-panel__inner {
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* Accessibility: Full reduced-motion override */
+@media (prefers-reduced-motion: reduce) {
+  .landing-panel {
+    position: relative !important;
+    top: auto !important;
+    opacity: 1 !important;
+    margin-top: 0 !important;
+    transition: none !important;
+  }
+  .landing-panel--sticky {
+    position: relative !important;
+    top: auto !important;
+  }
+  .landing-panel--overlap {
+    margin-top: 0 !important;
+  }
+  .landing-panel__inner {
+    transform: none !important;
+    opacity: 1 !important;
+    transition: none !important;
+  }
+}
+
+

@@ -15,8 +15,10 @@ const DMsg = () => {
         setDelForEveryone(false);
     };
 
-    const isSender = (msg?.Sender?._id || msg?.Sender) === user?._id;
-    const withinOneHour = msg?.createdAt ? (new Date() - new Date(msg.createdAt) < 60 * 60 * 1000) : false;
+    const isSender = String(msg?.Sender?._id || msg?.Sender) === String(user?._id);
+    const timeDiffMs = msg?.createdAt ? (Date.now() - new Date(msg.createdAt).getTime()) : Infinity;
+    const withinOneHour = timeDiffMs < 60 * 60 * 1000;
+    const minutesLeft = withinOneHour ? Math.max(1, Math.round((60 * 60 * 1000 - timeDiffMs) / 60000)) : 0;
 
     const hendleDelete = async () => {
         try {
@@ -28,7 +30,7 @@ const DMsg = () => {
     }
 
     return (
-        <div className="fixed inset-0 bg-[var(--c-overlay)] backdrop-blur-md z-50 flex items-center justify-center px-4">
+        <div className="fixed inset-0 bg-[var(--c-overlay)] backdrop-blur-md z-[70] flex items-center justify-center px-4">
             <div className="bg-[var(--c-surface)]  text-[var(--c-text)]  w-full max-w-md rounded-xl p-6 shadow-2xl relative transition-all duration-300 ease-in-out">
 
                 {/* Close Button */}
@@ -51,20 +53,24 @@ const DMsg = () => {
                     {forevryone ? "Delete for everyone?" : "Delete this message?"}
                 </h1>
 
-                {/* Checkbox Row */}
-                {isSender && withinOneHour && (
-                    <div className="flex items-center justify-center gap-3 mb-6">
-                        <label className="text-[var(--c-text-2)]  text-sm flex items-center gap-2 cursor-pointer">
+                {/* Checkbox Row & Hints */}
+                {isSender && withinOneHour ? (
+                    <div className="flex flex-col items-center justify-center gap-1.5 mb-6">
+                        <label className="text-[var(--c-text-2)] text-sm flex items-center gap-2 cursor-pointer">
                             <input
                                 type="checkbox"
                                 className="accent-[var(--c-primary)] size-4"
                                 checked={forevryone}
                                 onChange={() => setForevryone(!forevryone)}
                             />
-                            Delete for everyone
+                            Delete for everyone ({minutesLeft}m left to unsend)
                         </label>
                     </div>
-                )}
+                ) : isSender && !withinOneHour ? (
+                    <p className="text-xs text-[var(--c-text-3)] text-center mb-5">
+                        Messages older than 1 hour can only be deleted for yourself.
+                    </p>
+                ) : null}
 
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row justify-center items-center gap-3">

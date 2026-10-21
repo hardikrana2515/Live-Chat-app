@@ -14,6 +14,7 @@ import GroupSetting from '../components/GroupSetting'
 import Yesmodal from '../components/Yesmodal'
 import DMsg from '../components/DMsg'
 import VideoCall from '../components/VideoCall'
+import GroupCall from '../components/GroupCall'
 import IncomingCallModal from '../components/IncomingCallModal'
 import { encryptMessage } from '../utils/EncryptionUtils'
 
@@ -26,8 +27,10 @@ const Chatpage = () => {
 
   // ---- Call state lives here (always mounted) so incoming calls are received
   // even when the user is on the welcome screen without an open chat. ----
-  const [callData, setCallData] = useState(null); // { isIncoming, from, name, signalData, callType }
+  const [callData, setCallData] = useState(null); // { isIncoming, from, name, signalData, callType, isGroup, chatId, chatName }
   const [inCall, setInCall] = useState(false);
+  const [inGroupCall, setInGroupCall] = useState(false);
+  const [groupCallTarget, setGroupCallTarget] = useState(null);
   const [callType, setCallType] = useState('video'); // 'video' | 'audio'
 
   useEffect(() => {
@@ -44,13 +47,35 @@ const Chatpage = () => {
       setCallData(null);
     };
 
+    const handleIncomingGroupCall = ({ chatId, chatName, initiator, callType }) => {
+      console.log("[Chatpage] Incoming group call:", chatName, initiator?.name);
+      setCallData({
+        isIncoming: true,
+        isGroup: true,
+        chatId,
+        chatName,
+        initiator,
+        name: initiator?.name || "Group Member",
+        callType: callType || 'video'
+      });
+    };
+
+    const handleCallHandled = () => {
+      console.log("[Chatpage] Call handled in another tab/device");
+      setCallData(null);
+    };
+
     socket.current.on("callUser", handleCallUser);
     socket.current.on("callEnded", handleCallEnded);
+    socket.current.on("callHandled", handleCallHandled);
+    socket.current.on("incomingGroupCall", handleIncomingGroupCall);
 
     return () => {
       if (socket.current) {
         socket.current.off("callUser", handleCallUser);
         socket.current.off("callEnded", handleCallEnded);
+        socket.current.off("callHandled", handleCallHandled);
+        socket.current.off("incomingGroupCall", handleIncomingGroupCall);
       }
     };
   }, [socket, isConnected]);
@@ -62,17 +87,48 @@ const Chatpage = () => {
   };
 
   const startCall = (type = 'video') => {
-    setInCall(true);
-    setCallType(type);
-    setCallData({ isIncoming: false, callType: type });
+    if (selectedchat?.isGroup) {
+      setInGroupCall(true);
+      setCallType(type);
+      setGroupCallTarget(selectedchat);
+      if (socket?.current) {
+        socket.current.emit("startGroupCall", {
+          chatId: selectedchat._id,
+          chatName: selectedchat.chatname,
+          initiator: user,
+          callType: type
+        });
+      }
+    } else {
+      setInCall(true);
+      setCallType(type);
+      setCallData({ isIncoming: false, callType: type });
+    }
   };
 
   const acceptCall = () => {
-    setInCall(true);
-    setCallType(callData.callType);
+    if (callData?.isGroup) {
+      const targetGroup = (chat || []).find(c => c._id === callData.chatId) || selectedchat || {
+        _id: callData.chatId,
+        chatname: callData.chatName,
+        isGroup: true
+      };
+      setGroupCallTarget(targetGroup);
+      setInGroupCall(true);
+      setCallType(callData.callType);
+      setCallData(null);
+    } else {
+      setInCall(true);
+      setCallType(callData.callType);
+    }
   };
 
   const declineCall = async () => {
+    if (callData?.isGroup) {
+      setCallData(null);
+      return;
+    }
+
     if (callData?.from && socket?.current) {
       socket.current.emit("endCall", { to: String(callData.from) });
     }
@@ -133,6 +189,31 @@ const Chatpage = () => {
     setCallData(null);
   };
 
+  const endGroupCall = async (stats) => {
+    setInGroupCall(false);
+    const targetChat = groupCallTarget || selectedchat;
+
+    if (stats && targetChat?._id && Send) {
+      try {
+        const payload = `[CALL_LOG]:::${JSON.stringify({
+          type: stats.type || callType || 'video',
+          status: 'ended',
+          duration: stats.duration || 0,
+          isGroup: true
+        })}`;
+        const encrypted = await encryptMessage(payload, targetChat);
+        const sentMsg = await Send(encrypted, null, targetChat._id);
+        if (socket?.current) socket.current.emit("new message", sentMsg);
+        if (setChat) {
+          setChat(prevChats => (prevChats || []).map(c => c._id === targetChat._id ? { ...c, lastMessage: sentMsg, updatedAt: new Date().toISOString() } : c));
+        }
+      } catch (err) {
+        console.error("Failed to log group call end:", err);
+      }
+    }
+    setGroupCallTarget(null);
+  };
+
   return (
     <div className="relative flex h-[100dvh] w-full overflow-hidden bg-[var(--c-canvas)] text-[var(--c-text)]">
       {/* Modals */}
@@ -145,12 +226,14 @@ const Chatpage = () => {
       {pass && <UpdatePassword />}
 
       {/* Call Modals (global: work even with no chat open) */}
-      {callData?.isIncoming && !inCall && (
+      {callData?.isIncoming && !inCall && !inGroupCall && (
         <IncomingCallModal
           callerName={callData.name}
           onAccept={acceptCall}
           onDecline={declineCall}
           callType={callData.callType}
+          isGroup={callData.isGroup}
+          chatName={callData.chatName}
         />
       )}
 
@@ -163,6 +246,16 @@ const Chatpage = () => {
           signalData={callData}
           EndCall={endCall}
           callType={callType}
+        />
+      )}
+
+      {inGroupCall && groupCallTarget && (
+        <GroupCall
+          socket={socket.current}
+          user={user}
+          chat={groupCallTarget}
+          callType={callType}
+          onEndCall={endGroupCall}
         />
       )}
 

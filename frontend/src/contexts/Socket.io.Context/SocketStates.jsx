@@ -55,6 +55,18 @@ const SocketStates = ({ children, ENDPOINT }) => {
                 s.emit("setup", userinfo);
             });
 
+            // Re-join personal room after reconnection so events resume (Issue §2)
+            s.on("reconnect", () => {
+                setIsConnected(true);
+                s.emit("setup", userinfo);
+                console.log("[Socket] Reconnected — re-joined personal room");
+            });
+
+            s.on("connect_error", (err) => {
+                console.warn("[Socket] Connection error:", err?.message);
+                setIsConnected(false);
+            });
+
             s.on("disconnect", () => {
                 setIsConnected(false);
             });

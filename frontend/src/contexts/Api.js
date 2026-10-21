@@ -16,10 +16,11 @@ API.interceptors.request.use((req) => {
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Only redirect on 401 Unauthorized if not already on login or forgot password
+    // Only redirect on 401 Unauthorized if not on a public page
     if (
       error.response &&
       error.response.status === 401 &&
+      window.location.pathname !== "/" &&
       !window.location.pathname.startsWith("/login") &&
       !window.location.pathname.startsWith("/password")
     ) {

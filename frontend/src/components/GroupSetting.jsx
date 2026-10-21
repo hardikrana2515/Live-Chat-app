@@ -523,7 +523,7 @@ const GroupSetting = () => {
 
                 {/* Custom Confirmation Modal (replaces browser confirm alert) */}
                 {confirmModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--c-overlay)] backdrop-blur-sm animate-fadeIn">
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[var(--c-overlay)] backdrop-blur-sm animate-fadeIn">
                         <div className="bg-[var(--c-surface)] border border-[var(--c-line)] rounded-2xl p-5 w-full max-w-sm shadow-2xl relative text-center">
                             <div className={`w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center text-xl ${
                                 confirmModal.type === 'dismiss_admin'

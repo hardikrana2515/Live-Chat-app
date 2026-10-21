@@ -91,8 +91,17 @@ export const clearRuntimeKeys = () => {
 // --- message key cache ------------------------------------------------------
 export const getCachedChatKey = (chatId) => (chatId ? keyCache.get(String(chatId)) || null : null);
 
+const notifyKeyReady = (chatId) => {
+  if (typeof window !== 'undefined' && chatId) {
+    window.dispatchEvent(new CustomEvent('talkyy:key-ready', { detail: { chatId: String(chatId) } }));
+  }
+};
+
 export const setCachedChatKey = (chatId, key) => {
-  if (chatId && key) keyCache.set(String(chatId), key);
+  if (chatId && key) {
+    keyCache.set(String(chatId), key);
+    notifyKeyReady(chatId);
+  }
 };
 
 /** Invalidate the cached message key (key rotation after remove/leave). */
@@ -259,9 +268,16 @@ export const ensureChatKey = async (chatOrId, userId = currentUser) => {
       }
     }
 
+    if (chat.isGroup && !keyB64 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('talkyy:request-group-key', {
+        detail: { chatId: cid, userId: uid, publicKey: identity.publicKeyB64 }
+      }));
+    }
+
     if (!keyB64) return null;
     const key = CryptoJS.enc.Base64.parse(keyB64);
     keyCache.set(cid, key);
+    notifyKeyReady(cid);
     return key;
   } catch (e) {
     console.warn('[E2EE] ensureChatKey failed:', e);
@@ -275,7 +291,7 @@ const makeWrap = async (identity, targetPubB64, cid, targetId, gkB64) => {
     identity.privateKey, targetPubB64, `talkyy-wrap:${cid}:${targetId}`
   );
   const wrapped = await aesGcmEncryptB64(pairB64, b64ToBytes(gkB64));
-  return { by: String(identity.userId ?? ''), byKey: identity.publicKeyB64, key: wrapped };
+  return { by: String(identity.userId ?? ''), byKey: identity.publicKeyB64, targetKey: targetPubB64, key: wrapped };
 };
 
 /**
@@ -324,12 +340,18 @@ export const rekeyGroupKeyFor = async (chatOrId, targets, userId = currentUser) 
   const uid = String(userId);
   identity.userId = uid;
 
-  const wrap = (chat.groupKeys || {})[uid];
-  if (!wrap || !wrap.key) throw new Error('No group key available');
-
-  let wrapperPub = wrap.byKey || identity.publicKeyB64;
-  const pairB64 = await derivePairwiseKeyB64(identity.privateKey, wrapperPub, `talkyy-wrap:${cid}:${uid}`);
-  const gkB64 = await aesGcmDecryptB64(pairB64, wrap.key);
+  const cached = keyCache.get(cid);
+  let gkB64 = null;
+  if (cached) {
+    gkB64 = CryptoJS.enc.Base64.stringify(cached);
+  } else {
+    const wrap = (chat.groupKeys || {})[uid];
+    if (wrap && wrap.key) {
+      let wrapperPub = wrap.byKey || identity.publicKeyB64;
+      const pairB64 = await derivePairwiseKeyB64(identity.privateKey, wrapperPub, `talkyy-wrap:${cid}:${uid}`);
+      gkB64 = await aesGcmDecryptB64(pairB64, wrap.key);
+    }
+  }
   if (!gkB64) throw new Error('Cannot unwrap group key');
 
   const groupKeys = {};

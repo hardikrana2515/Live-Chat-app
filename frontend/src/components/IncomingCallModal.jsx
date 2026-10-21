@@ -1,7 +1,7 @@
 import React from 'react';
 import { IoCall, IoClose, IoVideocam, IoMic } from "react-icons/io5";
 
-const IncomingCallModal = ({ callerName, onAccept, onDecline, callType }) => {
+const IncomingCallModal = ({ callerName, onAccept, onDecline, callType, isGroup, chatName }) => {
     return (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-[var(--c-surface)] border border-[var(--c-line)] w-full max-w-md p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-6">
@@ -16,9 +16,15 @@ const IncomingCallModal = ({ callerName, onAccept, onDecline, callType }) => {
                         )}
                     </div>
                     <div className="text-center">
-                        <h2 className="text-2xl font-bold text-[var(--c-text)] mb-1">{callerName}</h2>
-                        <p className="text-[var(--c-text-2)] text-lg">
-                            Incoming {callType === 'video' ? 'Video' : 'Voice'} Call...
+                        <h2 className="text-2xl font-bold text-[var(--c-text)] mb-1">
+                            {isGroup ? (chatName || "Group Call") : callerName}
+                        </h2>
+                        <p className="text-[var(--c-text-2)] text-base">
+                            {isGroup ? (
+                                <><strong>{callerName}</strong> started a Group {callType === 'video' ? 'Video' : 'Voice'} Call...</>
+                            ) : (
+                                <>Incoming {callType === 'video' ? 'Video' : 'Voice'} Call...</>
+                            )}
                         </p>
                     </div>
                 </div>

@@ -1,5 +1,6 @@
 import express from "express"
 import {Auth} from "../middleware/Auth.js"
+import { rateLimit } from "../middleware/rateLimiter.js"
 import {AccessChat,fetchChat,
         CreateGroup,RenameGroup,
         addtoGroup,RemovefromGroup,
@@ -8,11 +9,13 @@ import {AccessChat,fetchChat,
 import {body} from "express-validator"
 import upload from "../middleware/multer.js"
 
+const groupCreateLimiter = rateLimit({ windowMs: 60 * 1000, max: 15, message: "Too many groups created. Please wait a minute." });
+
 const ChatRoutes = express.Router()
 
 ChatRoutes.post("/chat", Auth, AccessChat)
 ChatRoutes.get("/allChat", Auth, fetchChat)
-ChatRoutes.post("/makeGroup", Auth, upload.single("groupIcon"), CreateGroup)
+ChatRoutes.post("/makeGroup", Auth, groupCreateLimiter, upload.single("groupIcon"), CreateGroup)
 ChatRoutes.put("/renameGroup", Auth, RenameGroup)
 ChatRoutes.put("/addtoGroup", Auth, addtoGroup)
 ChatRoutes.put("/removefromGroup", Auth, RemovefromGroup)
