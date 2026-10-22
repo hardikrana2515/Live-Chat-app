@@ -1,32 +1,3 @@
-// ---------------------------------------------------------------------------
-// Per-conversation end-to-end encryption key management.
-//
-// The app previously encrypted every message with ONE static key that was
-// bundled into the client — anyone with DevTools or the DB could read all
-// traffic. This module implements real key exchange instead:
-//
-//   * Each user generates an ECDH P-256 identity keypair on first use.
-//     The PRIVATE key lives only in localStorage (per device/account); the
-//     public key is published via PUT /user/publickey.
-//
-//   * 1:1 chats   — shared key = HKDF-lite(ECDH(myPrivate, peerPublic),
-//                   salt = "talkyy-chat:<chatId>"). Both members derive the
-//                   same key independently; nobody else can.
-//
-//   * Group chats — a random 256-bit group key (GK) is generated on the
-//                   client and distributed as per-member wrapped copies:
-//                       groupKeys[memberId] = { by, byKey, key }
-//                   where `key` = AES-GCM(wrapKey, GK) and wrapKey is the
-//                   pairwise ECDH key between the wrapper and that member.
-//                   The server only ever stores opaque ciphertext.
-//                   The GK is rotated (re-wrapped) when members are removed
-//                   or leave.
-//
-//   * Messages are encrypted with CryptoJS AES (kept synchronous so render
-//     paths stay simple) using the derived 256-bit key; new ciphertext is
-//     prefixed with "E2:" so legacy messages (static-key) still decrypt.
-// ---------------------------------------------------------------------------
-
 import CryptoJS from 'crypto-js';
 
 const PURPOSE = 'TalkyyChatKeyV2';
@@ -65,7 +36,31 @@ const b64ToBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 // --- chat registry ----------------------------------------------------------
 /** Remember a chat document so its keys can be resolved later by id. */
 export const registerChat = (chat) => {
-  if (chat && chat._id) chatRegistry.set(String(chat._id), chat);
+  if (chat && chat._id) {
+    const id = String(chat._id);
+    const existing = chatRegistry.get(id);
+    if (!existing) {
+      chatRegistry.set(id, chat);
+    } else {
+      const existingMembers = normalizeMembers(existing.members);
+      const incomingMembers = normalizeMembers(chat.members);
+      const mergedMembers = incomingMembers.length
+        ? incomingMembers.map(inc => {
+            const prev = existingMembers.find(p => p._id === inc._id);
+            return {
+              ...inc,
+              publicKey: inc.publicKey || prev?.publicKey || null,
+            };
+          })
+        : existing.members;
+
+      chatRegistry.set(id, {
+        ...existing,
+        ...chat,
+        members: mergedMembers || chat.members,
+      });
+    }
+  }
   return chat;
 };
 
@@ -74,6 +69,31 @@ export const registerChats = (chats) => {
 };
 
 export const getRegisteredChat = (chatId) => chatRegistry.get(String(chatId));
+
+/** Update a member's public key across all registered chats and drop invalidated message keys */
+export const updatePeerPublicKey = (userId, newPublicKey) => {
+  if (!userId) return;
+  const targetUid = String(userId);
+  chatRegistry.forEach((chat, cid) => {
+    let touched = false;
+    if (chat && Array.isArray(chat.members)) {
+      chat.members.forEach((m) => {
+        const mid = String(m?._id ?? m?.id ?? m ?? '');
+        if (mid === targetUid) {
+          if (typeof m === 'object' && m !== null) {
+            m.publicKey = newPublicKey;
+            if (m.identity) m.identity.publicKey = newPublicKey;
+          }
+          touched = true;
+        }
+      });
+    }
+    if (touched) {
+      keyCache.delete(cid);
+      notifyKeyReady(cid);
+    }
+  });
+};
 
 /** Forget a chat entirely (deleted group, leaving, logout). */
 export const dropChat = (chatId) => {
@@ -89,7 +109,12 @@ export const clearRuntimeKeys = () => {
 };
 
 // --- message key cache ------------------------------------------------------
-export const getCachedChatKey = (chatId) => (chatId ? keyCache.get(String(chatId)) || null : null);
+export const getCachedChatKey = (chatId) => {
+  if (!chatId) return null;
+  const entry = keyCache.get(String(chatId));
+  if (!entry) return null;
+  return entry.key || entry;
+};
 
 const notifyKeyReady = (chatId) => {
   if (typeof window !== 'undefined' && chatId) {
@@ -97,9 +122,9 @@ const notifyKeyReady = (chatId) => {
   }
 };
 
-export const setCachedChatKey = (chatId, key) => {
+export const setCachedChatKey = (chatId, key, peerPub = null) => {
   if (chatId && key) {
-    keyCache.set(String(chatId), key);
+    keyCache.set(String(chatId), { key, peerPub });
     notifyKeyReady(chatId);
   }
 };
@@ -111,9 +136,8 @@ export const clearChatKey = (chatId) => {
 
 // --- identity keys ----------------------------------------------------------
 /**
- * Load (or generate on first use) this user's ECDH identity keypair.
- * Private key: localStorage only. Public key: published to the server by
- * UserState after login.
+ * Load this user's ECDH identity keypair from storage.
+ * If not present locally, returns null (does NOT silently generate a replacement!).
  */
 export const ensureIdentityKey = (userId = currentUser) => {
   if (!userId) return Promise.resolve(null);
@@ -129,29 +153,82 @@ export const ensureIdentityKey = (userId = currentUser) => {
           const privateKey = await crypto.subtle.importKey(
             'jwk', JSON.parse(privJwk),
             { name: 'ECDH', namedCurve: 'P-256' },
-            false, ['deriveBits']
+            true, ['deriveBits']
           );
           return { privateKey, publicKeyB64: pubB64 };
         }
-
-        const kp = await crypto.subtle.generateKey(
-          { name: 'ECDH', namedCurve: 'P-256' },
-          true,
-          ['deriveBits']
-        );
-        const jwk = await crypto.subtle.exportKey('jwk', kp.privateKey);
-        const raw = new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey));
-        storage.setItem(privStore, JSON.stringify(jwk));
-        storage.setItem(pubStore, bytesToB64(raw));
-        return { privateKey: kp.privateKey, publicKeyB64: storage.getItem(pubStore) };
+        // Local key absent. Do not silently generate a replacement key!
+        return null;
       } catch (e) {
-        console.warn('[E2EE] Identity key init failed:', e);
+        console.warn('[E2EE] Identity key import failed:', e);
         identityCache.delete(uid); // allow retry on next call
         return null;
       }
     })());
   }
   return identityCache.get(uid);
+};
+
+/** Check if user has an identity key stored locally */
+export const hasLocalIdentityKey = (userId = currentUser) => {
+  if (!userId) return false;
+  return Boolean(storage.getItem(`talkyy_identity_priv_${userId}`));
+};
+
+/** Generate a brand-new identity keypair (explicit initial setup only) */
+export const generateNewIdentityKey = async (userId = currentUser) => {
+  if (!userId) throw new Error('User ID required');
+  const uid = String(userId);
+  const privStore = `talkyy_identity_priv_${uid}`;
+  const pubStore = `talkyy_identity_pub_${uid}`;
+
+  const kp = await crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' },
+    true,
+    ['deriveBits']
+  );
+  const jwk = await crypto.subtle.exportKey('jwk', kp.privateKey);
+  const raw = new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey));
+  const pubB64 = bytesToB64(raw);
+
+  storage.setItem(privStore, JSON.stringify(jwk));
+  storage.setItem(pubStore, pubB64);
+
+  const identity = { privateKey: kp.privateKey, publicKeyB64: pubB64, jwk };
+  identityCache.set(uid, Promise.resolve(identity));
+  return identity;
+};
+
+/** Save an authenticated recovered identity key to storage and memory cache */
+export const saveRecoveredIdentityKey = async (userId, privateKey, publicKeyB64, jwk) => {
+  const uid = String(userId);
+  const privStore = `talkyy_identity_priv_${uid}`;
+  const pubStore = `talkyy_identity_pub_${uid}`;
+
+  const jwkToSave = jwk || (await crypto.subtle.exportKey('jwk', privateKey));
+  storage.setItem(privStore, JSON.stringify(jwkToSave));
+  storage.setItem(pubStore, publicKeyB64);
+
+  const identity = { privateKey, publicKeyB64 };
+  identityCache.set(uid, Promise.resolve(identity));
+
+  // Clear cached conversation keys so they immediately re-derive with the restored identity
+  keyCache.clear();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('talkyy:key-ready', { detail: { restored: true } }));
+  }
+
+  return identity;
+};
+
+/** Clear identity key from local storage (used on reset) */
+export const clearLocalIdentityKey = (userId = currentUser) => {
+  if (!userId) return;
+  const uid = String(userId);
+  storage.removeItem(`talkyy_identity_priv_${uid}`);
+  storage.removeItem(`talkyy_identity_pub_${uid}`);
+  identityCache.delete(uid);
+  keyCache.clear();
 };
 
 /** My published public key (base64), or null. */
@@ -211,7 +288,10 @@ const normalizeMembers = (list) =>
   (Array.isArray(list) ? list : [])
     .map((m) => (typeof m === 'string' ? { _id: m } : m))
     .filter((m) => m && (m._id || m.id))
-    .map((m) => ({ _id: String(m._id ?? m.id), publicKey: m.publicKey }));
+    .map((m) => ({
+      _id: String(m._id ?? m.id),
+      publicKey: m.publicKey || m.identity?.publicKey || null
+    }));
 
 // --- conversation key resolution --------------------------------------------
 /**
@@ -233,15 +313,27 @@ export const ensureChatKey = async (chatOrId, userId = currentUser) => {
     if (!chat || !chat._id) return null;
 
     const cid = String(chat._id);
-    const cached = keyCache.get(cid);
-    if (cached) return cached;
-    if (!userId) return null;
+    const uid = String(userId || currentUser || '');
+    const peer = !chat.isGroup ? normalizeMembers(chat.members).find((m) => m._id !== uid) : null;
+    const peerPub = peer?.publicKey || null;
 
-    const identity = await ensureIdentityKey(userId);
+    const cached = keyCache.get(cid);
+    if (cached) {
+      const cachedKey = cached.key || cached;
+      const cachedPeerPub = cached.peerPub;
+      // In 1:1 chats, if peer public key changed, invalidate stale cached key and re-derive
+      if (!chat.isGroup && cachedPeerPub && peerPub && cachedPeerPub !== peerPub) {
+        keyCache.delete(cid);
+      } else {
+        return cachedKey;
+      }
+    }
+    if (!userId && !currentUser) return null;
+
+    const identity = await ensureIdentityKey(userId || currentUser);
     if (!identity) return null;
 
     let keyB64 = null;
-    const uid = String(userId);
 
     if (chat.isGroup) {
       const wraps = chat.groupKeys || {};
@@ -260,7 +352,6 @@ export const ensureChatKey = async (chatOrId, userId = currentUser) => {
         }
       }
     } else {
-      const peer = normalizeMembers(chat.members).find((m) => m._id !== uid);
       if (peer && peer.publicKey) {
         keyB64 = await derivePairwiseKeyB64(
           identity.privateKey, peer.publicKey, `talkyy-chat:${cid}`
@@ -276,7 +367,7 @@ export const ensureChatKey = async (chatOrId, userId = currentUser) => {
 
     if (!keyB64) return null;
     const key = CryptoJS.enc.Base64.parse(keyB64);
-    keyCache.set(cid, key);
+    keyCache.set(cid, { key, peerPub });
     notifyKeyReady(cid);
     return key;
   } catch (e) {

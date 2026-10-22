@@ -9,6 +9,7 @@ import Logout from './Logout';
 import chatContext from "../contexts/ChatContext/chatcontext";
 import userContext from '../contexts/UserContext/userContext';
 import SocketContext from '../contexts/Socket.io.Context/socket.Context';
+import { registerChat, ensureChatKey } from '../utils/cryptoKeys';
 import Chat, { isChatUnread } from "./Chat";
 
 const ThemeToggle = () => {
@@ -37,7 +38,7 @@ const ThemeToggle = () => {
 };
 
 const Sidebar = () => {
-  const { setGroupchat, user: chatUser, Allchat, isAuthReady, chat } = useContext(chatContext);
+  const { setGroupchat, user: chatUser, Allchat, isAuthReady, chat, setSelectedchat } = useContext(chatContext);
   const { setCard, user: authUser, friendRequests, getFriendRequests, acceptRequest, refreshUser } = useContext(userContext);
   const { socket, isConnected } = useContext(SocketContext);
   const user = authUser?.name ? authUser : chatUser;
@@ -103,8 +104,8 @@ const Sidebar = () => {
   }, [requestsCount, showRequests]);
 
   const handleRequestAction = async (senderId, status) => {
-    const success = await acceptRequest(senderId, status);
-    if (success) {
+    const resData = await acceptRequest(senderId, status);
+    if (resData) {
       if (socket?.current) {
         socket.current.emit("friend request responded", {
           targetUserId: String(senderId),
@@ -113,7 +114,14 @@ const Sidebar = () => {
       }
       getFriendRequests();
       refreshUser();
-      Allchat();
+      await Allchat();
+
+      const newChat = resData?.chat;
+      if (status === 'accepted' && newChat) {
+        registerChat(newChat);
+        await ensureChatKey(newChat, user?._id);
+        setSelectedchat(newChat);
+      }
     }
   };
 

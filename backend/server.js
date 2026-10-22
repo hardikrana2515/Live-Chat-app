@@ -35,7 +35,8 @@ const io = new Server(server, {
 app.use(cors(corsOptions));
 
 
-app.use(express.json());
+app.use(express.json({ limit: '250mb' }));
+app.use(express.urlencoded({ extended: true, limit: '250mb' }));
 import fs from 'fs';
 
 const localEnv = path.join(__dirname, '.env');
@@ -225,22 +226,63 @@ io.on("connection", (socket) => {
     }
   });
 
+  const endGroupCallEntirely = (cId, reason = "ended") => {
+    if (!cId || !activeGroupCalls.has(cId)) return;
+    const roomData = activeGroupCalls.get(cId);
+    const duration = Math.round((Date.now() - roomData.startedAt) / 1000);
+
+    console.log(`[GroupCall] Ending group call for ${cId}. Reason: ${reason}, duration: ${duration}s`);
+
+    io.to(`call_${cId}`).emit("groupCallEnded", {
+      chatId: cId,
+      duration,
+      callType: roomData.callType,
+      reason,
+      initiatorId: roomData.initiatorId
+    });
+
+    io.to(cId).emit("groupCallEnded", {
+      chatId: cId,
+      duration,
+      callType: roomData.callType,
+      reason,
+      initiatorId: roomData.initiatorId
+    });
+
+    activeGroupCalls.delete(cId);
+
+    io.to(cId).emit("groupCallActiveStatus", {
+      chatId: cId,
+      isActive: false,
+      participantCount: 0
+    });
+  };
+
   socket.on("startGroupCall", async ({ chatId, chatName, initiator, callType }) => {
     const cId = toId(chatId);
     if (!cId) return;
 
+    const initId = toId(initiator?._id || initiator);
     if (!activeGroupCalls.has(cId)) {
       activeGroupCalls.set(cId, {
         chatId: cId,
         chatName: chatName || "Group",
         callType: callType || 'video',
         startedAt: Date.now(),
+        initiatorId: initId,
+        initiatorSocketId: socket.id,
+        hadMultipleParticipants: false,
         participants: new Map()
       });
+    } else {
+      const existing = activeGroupCalls.get(cId);
+      if (!existing.initiatorId && initId) {
+        existing.initiatorId = initId;
+        existing.initiatorSocketId = socket.id;
+      }
     }
 
     const memberIds = await resolveMemberIds(cId);
-    const initId = toId(initiator?._id || initiator);
     memberIds.forEach((mId) => {
       if (mId && mId !== initId) {
         io.to(mId).emit("incomingGroupCall", {
@@ -277,11 +319,15 @@ io.on("connection", (socket) => {
 
     socket.join(`call_${cId}`);
 
+    const uId = toId(user?._id || user);
     if (!activeGroupCalls.has(cId)) {
       activeGroupCalls.set(cId, {
         chatId: cId,
         callType: callType || 'video',
         startedAt: Date.now(),
+        initiatorId: uId,
+        initiatorSocketId: socket.id,
+        hadMultipleParticipants: false,
         participants: new Map()
       });
     }
@@ -296,6 +342,11 @@ io.on("connection", (socket) => {
       ...user,
       socketId: socket.id
     });
+
+    // Mark whether the call ever reached 2+ participants
+    if (roomData.participants.size >= 2) {
+      roomData.hadMultipleParticipants = true;
+    }
 
     socket.emit("allGroupCallUsers", existingParticipants);
 
@@ -341,36 +392,66 @@ io.on("connection", (socket) => {
     if (!cId || !activeGroupCalls.has(cId)) return;
 
     const roomData = activeGroupCalls.get(cId);
+    const userLeaving = roomData.participants.get(socketId);
+    const leavingUserId = toId(userLeaving?._id);
+
+    const isInitiator =
+      (roomData.initiatorSocketId && socketId === roomData.initiatorSocketId) ||
+      (roomData.initiatorId && leavingUserId && leavingUserId === roomData.initiatorId);
+
     roomData.participants.delete(socketId);
     socket.leave(`call_${cId}`);
 
     io.to(`call_${cId}`).emit("userLeftGroupCall", { socketId });
 
-    if (roomData.participants.size === 0) {
-      const duration = Math.round((Date.now() - roomData.startedAt) / 1000);
-      io.to(cId).emit("groupCallEnded", {
-        chatId: cId,
-        duration,
-        callType: roomData.callType
-      });
-      activeGroupCalls.delete(cId);
-      io.to(cId).emit("groupCallActiveStatus", {
-        chatId: cId,
-        isActive: false,
-        participantCount: 0
-      });
-    } else {
-      io.to(cId).emit("groupCallActiveStatus", {
-        chatId: cId,
-        isActive: true,
-        callType: roomData.callType,
-        participantCount: roomData.participants.size
-      });
+    // 1. If the initiator ends or leaves the call -> terminate call for EVERYONE
+    if (isInitiator) {
+      console.log(`[GroupCall] Initiator left group call in ${cId}. Ending call for all.`);
+      endGroupCallEntirely(cId, "initiator_left");
+      return;
     }
+
+    // 2. If 0 participants remain -> terminate call
+    if (roomData.participants.size === 0) {
+      endGroupCallEntirely(cId, "all_left");
+      return;
+    }
+
+    // 3. If multiple participants were in the call and now only 1 remains:
+    // A group call cannot continue with a single lonely user! Automatically terminate.
+    if (roomData.hadMultipleParticipants && roomData.participants.size <= 1) {
+      console.log(`[GroupCall] Only 1 participant remaining in ${cId} after others left. Ending call.`);
+      endGroupCallEntirely(cId, "single_participant_left");
+      return;
+    }
+
+    // 4. Otherwise, 2+ participants remain in the group call
+    io.to(cId).emit("groupCallActiveStatus", {
+      chatId: cId,
+      isActive: true,
+      callType: roomData.callType,
+      participantCount: roomData.participants.size
+    });
   };
 
   socket.on("leaveGroupCall", ({ chatId }) => {
     leaveGroupCallInternal(socket.id, chatId);
+  });
+
+  socket.on("endGroupCall", ({ chatId }) => {
+    const cId = toId(chatId);
+    if (!cId || !activeGroupCalls.has(cId)) return;
+    const roomData = activeGroupCalls.get(cId);
+    const myUid = [...onlineUsers.entries()].find(([, sid]) => sid === socket.id)?.[0];
+    const isInitiator =
+      (roomData.initiatorSocketId && socket.id === roomData.initiatorSocketId) ||
+      (roomData.initiatorId && myUid && myUid === roomData.initiatorId);
+
+    if (isInitiator || roomData.participants.size <= 1) {
+      endGroupCallEntirely(cId, "initiator_left");
+    } else {
+      leaveGroupCallInternal(socket.id, cId);
+    }
   });
 
   // Friend Request live signaling

@@ -79,6 +79,62 @@ const userschema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    identity: {
+      identityId: {
+        type: String,
+        default: "",
+      },
+      version: {
+        type: Number,
+        default: 1,
+      },
+      publicKey: {
+        type: String,
+        default: "",
+      },
+      publicKeyFingerprint: {
+        type: String,
+        default: "",
+      },
+      vault: {
+        formatVersion: {
+          type: Number,
+          default: 1,
+        },
+        cipher: {
+          type: String,
+          default: "AES-256-GCM",
+        },
+        kdf: {
+          type: String,
+          default: "PBKDF2-HMAC-SHA256",
+        },
+        kdfIterations: {
+          type: Number,
+          default: 100000,
+        },
+        salt: {
+          type: String,
+          default: "",
+        },
+        nonce: {
+          type: String,
+          default: "",
+        },
+        ciphertext: {
+          type: String,
+          default: "",
+        },
+        aad: {
+          type: String,
+          default: "",
+        },
+        updatedAt: {
+          type: Date,
+          default: null,
+        },
+      },
+    },
   },
   {
     timestamps: true,

@@ -2,12 +2,13 @@ import express from "express"
 import { body } from "express-validator"
 import upload from "../middleware/multer.js"
 import { validate } from "../middleware/validate.middleware.js"
-import { userRegister, userLogin, updatePassword, userLogout, getUser, uploadImage, Alluser, forgotPassword, resetPassword, sendRequest, getRequests, acceptRequest, getFriends, blockUser, unblockUser, setPublicKey } from "../controller/user.controller.js"
+import { userRegister, userLogin, updatePassword, userLogout, getUser, uploadImage, Alluser, forgotPassword, resetPassword, sendRequest, getRequests, acceptRequest, getFriends, blockUser, unblockUser, setPublicKey, getIdentityVault, registerIdentityVault, updateIdentityVault, resetIdentity } from "../controller/user.controller.js"
 import { Auth } from "../middleware/Auth.js"
 import { rateLimit } from "../middleware/rateLimiter.js"
 
 const authLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, message: "Too many auth attempts. Please wait a minute." });
 const friendReqLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: "Too many friend requests sent. Please wait a minute." });
+const vaultLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, message: "Too many vault operations. Please wait a minute." });
 
 const UserRoutes = express.Router()
 
@@ -46,5 +47,10 @@ UserRoutes.get("/friends", Auth, getFriends);
 UserRoutes.put("/block", Auth, blockUser);
 UserRoutes.put("/unblock", Auth, unblockUser);
 UserRoutes.put("/publickey", Auth, setPublicKey);
+
+UserRoutes.get("/vault", Auth, getIdentityVault);
+UserRoutes.post("/vault", Auth, vaultLimiter, registerIdentityVault);
+UserRoutes.put("/vault", Auth, vaultLimiter, updateIdentityVault);
+UserRoutes.post("/identity/reset", Auth, vaultLimiter, resetIdentity);
 
 export default UserRoutes

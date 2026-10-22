@@ -1,9 +1,21 @@
 import UserContext from "./userContext";
 import API from "../Api.js"
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from "react-router-dom"
 import { toast } from 'react-toastify'
-import { setCurrentUser, ensureIdentityKey, clearRuntimeKeys } from '../../utils/cryptoKeys'
+import {
+    setCurrentUser,
+    ensureIdentityKey,
+    clearRuntimeKeys,
+    hasLocalIdentityKey,
+    generateNewIdentityKey,
+    saveRecoveredIdentityKey,
+    clearLocalIdentityKey
+} from '../../utils/cryptoKeys'
+import {
+    encryptIdentityVault,
+    decryptIdentityVault
+} from '../../utils/keyVault'
 
 
 const UserState = ({ children }) => {
@@ -26,34 +38,150 @@ const UserState = ({ children }) => {
     const [card, setCard] = useState(false)
     const [pass, setpass] = useState(false)
     const [logoutModal, setLogoutModal] = useState(false);
+    const [identityState, setIdentityState] = useState('IDLE'); // 'IDLE' | 'CHECKING' | 'READY' | 'SETUP_REQUIRED' | 'RECOVERY_REQUIRED' | 'UNRECOVERABLE' | 'MISMATCH'
+    const [vaultData, setVaultData] = useState(null);
+    const [showSetupModal, setShowSetupModal] = useState(false);
+    const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+    const [showResetModal, setShowResetModal] = useState(false);
     const navigate = useNavigate()
 
     // Make the active user available to the E2EE layer during render (before
     // any child effect runs) so key derivation works on first paint. (Issue 3.2)
     setCurrentUser(user?._id || null);
 
-    // Publish this device's ECDH public key so chat peers can derive shared
-    // conversation keys. The private key never leaves this device. (Issue 3.2)
+    const checkIdentityStatus = useCallback(async (targetUser = user) => {
+        const uid = targetUser?._id;
+        const token = targetUser?.token || localStorage.getItem("token");
+        if (!uid || !token) return;
+
+        setIdentityState('CHECKING');
+        try {
+            const res = await API.get("user/vault", {
+                headers: { Authorization: token },
+                withCredentials: true
+            });
+            const data = res.data?.data || {};
+            setVaultData(data);
+
+            const hasLocal = hasLocalIdentityKey(uid);
+
+            if (hasLocal) {
+                const localIdentity = await ensureIdentityKey(uid);
+                if (localIdentity?.publicKeyB64) {
+                    if (data.publicKey && data.publicKey !== localIdentity.publicKeyB64) {
+                        console.warn("[E2EE] Identity mismatch between local key and server identity.");
+                        setIdentityState('MISMATCH');
+                        return;
+                    }
+                    setIdentityState('READY');
+                    // If local key is present but no vault is stored yet, prompt user to back it up
+                    if (!data.hasVault) {
+                        setShowSetupModal(true);
+                    }
+                    return;
+                }
+            }
+
+            // Local private key is absent
+            if (data.hasVault && data.vault) {
+                console.info("[E2EE] Local key absent. Vault found on server. Recovery required.");
+                setIdentityState('RECOVERY_REQUIRED');
+                setShowRecoveryModal(true);
+            } else if (!data.hasIdentity) {
+                console.info("[E2EE] No registered identity found. Initial key setup required.");
+                setIdentityState('SETUP_REQUIRED');
+                setShowSetupModal(true);
+            } else {
+                console.warn("[E2EE] Server has registered identity but no vault is available. Identity unrecoverable.");
+                setIdentityState('UNRECOVERABLE');
+            }
+        } catch (e) {
+            console.warn("[E2EE] Failed to verify identity status:", e);
+            setIdentityState('IDLE');
+        }
+    }, [user]);
+
+    // Check identity status whenever authenticated user changes
     useEffect(() => {
         if (!user?._id) return;
-        let cancelled = false;
-        (async () => {
-            try {
-                const identity = await ensureIdentityKey(user._id);
-                if (!identity || cancelled) return;
-                await API.put("user/publickey", { publicKey: identity.publicKeyB64 }, {
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: localStorage.getItem("token")
-                    },
-                    withCredentials: true
-                });
-            } catch (e) {
-                console.warn("Failed to publish public key:", e?.response?.data?.message || e?.message);
-            }
-        })();
-        return () => { cancelled = true; };
-    }, [user?._id]);
+        checkIdentityStatus(user);
+    }, [user?._id, checkIdentityStatus]);
+
+    const performInitialSetup = async (recoverySecret) => {
+        const uid = user?._id;
+        if (!uid) throw new Error("User must be logged in.");
+
+        const identity = await generateNewIdentityKey(uid);
+        const identityId = `id_${uid}_${Date.now()}`;
+        const { vault, publicKeyFingerprint } = await encryptIdentityVault(
+            identity.privateKey,
+            identity.publicKeyB64,
+            identityId,
+            recoverySecret
+        );
+
+        await API.post("user/vault", {
+            identityId,
+            version: 1,
+            publicKey: identity.publicKeyB64,
+            publicKeyFingerprint,
+            vault
+        }, {
+            headers: { Authorization: user.token || localStorage.getItem("token") },
+            withCredentials: true
+        });
+
+        setIdentityState('READY');
+        setVaultData({
+            hasIdentity: true,
+            hasVault: true,
+            identityId,
+            version: 1,
+            publicKey: identity.publicKeyB64,
+            publicKeyFingerprint,
+            vault
+        });
+        toast.success("Encryption key vault created successfully!");
+    };
+
+    const performIdentityRecovery = async (recoverySecret) => {
+        const uid = user?._id;
+        if (!uid) throw new Error("User must be logged in.");
+        if (!vaultData?.vault) throw new Error("No vault envelope found on server.");
+
+        const recovered = await decryptIdentityVault(
+            vaultData.vault,
+            recoverySecret,
+            vaultData.publicKey
+        );
+
+        await saveRecoveredIdentityKey(
+            uid,
+            recovered.privateKey,
+            recovered.publicKeyB64
+        );
+
+        setIdentityState('READY');
+        toast.success("Encryption keys restored! Messages will now decrypt.");
+    };
+
+    const performIdentityReset = async (password) => {
+        const uid = user?._id;
+        if (!uid) throw new Error("User must be logged in.");
+
+        await API.post("user/identity/reset", {
+            password,
+            confirmReset: true
+        }, {
+            headers: { Authorization: user.token || localStorage.getItem("token") },
+            withCredentials: true
+        });
+
+        clearLocalIdentityKey(uid);
+        setIdentityState('SETUP_REQUIRED');
+        setShowSetupModal(true);
+        toast.info("Identity reset. Setting up fresh encryption keypair.");
+    };
 
     const signup = async (name, gender, userName, phonenumber, email, password) => {
 
@@ -237,7 +365,7 @@ const UserState = ({ children }) => {
                 withCredentials: true
             });
             toast.success(res.data.message);
-            return true;
+            return res.data?.data || res.data || true;
         } catch (e) {
             toast.error(e?.response?.data?.message || "Failed to accept request");
             return false;
@@ -273,7 +401,16 @@ const UserState = ({ children }) => {
             Alluser, setLoading, searchUser, setSearchUser, GetUser, refreshUser,
             user, logout, setCard, card, UploadImg, updatePassword,
             setpass, pass, sendRequest, acceptRequest, getFriendRequests, friendRequests,
-            logoutModal, setLogoutModal
+            logoutModal, setLogoutModal,
+            identityState, setIdentityState,
+            vaultData, setVaultData,
+            showSetupModal, setShowSetupModal,
+            showRecoveryModal, setShowRecoveryModal,
+            showResetModal, setShowResetModal,
+            checkIdentityStatus,
+            performInitialSetup,
+            performIdentityRecovery,
+            performIdentityReset
         }}>
             {children}
         </UserContext.Provider>

@@ -25,7 +25,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 20 * 1024 * 1024 }
+    limits: { fileSize: 220 * 1024 * 1024 } // 220 MB allows 150 MB raw files + encryption overhead
 });
 
 export default upload;

@@ -1,10 +1,11 @@
 import { useContext, useState, useEffect, useRef } from 'react';
 import { MdAddReaction } from "react-icons/md";
-import { FiEdit2, FiCopy, FiTrash2, FiGlobe } from "react-icons/fi";
+import { FiEdit2, FiCopy, FiTrash2, FiGlobe, FiLock, FiKey } from "react-icons/fi";
 import { IoPerson, IoCall, IoVideocam, IoVideocamOff, IoCheckmarkDone, IoCheckmark } from "react-icons/io5";
 import { toast } from 'react-toastify';
 import messageContext from '../contexts/MessageContext/messageContext';
 import chatContext from '../contexts/ChatContext/chatcontext';
+import userContext from '../contexts/UserContext/userContext';
 import AudioMessage from './AudioMessage';
 import { decryptMessage } from '../utils/EncryptionUtils';
 import { getCachedChatKey } from '../utils/cryptoKeys.js';
@@ -38,6 +39,7 @@ const MenuRow = ({ icon, label, danger, onClick }) => (
 const AllchatMsg = ({ onStartCall }) => {
     const { AllMessages, Allmsg, msg, setMsg, DeleteMsg, Del, setDel, ReadBy, ReactToMsg, EditMsg, editingMsg, setEditingMsg, setDelForEveryone, hasMore, LoadOlderMessages, loadingOlder } = useContext(messageContext);
     const { user, selectedchat, isAuthReady, MakeChat, Allchat } = useContext(chatContext); // Use isAuthReady
+    const { setShowRecoveryModal, identityState } = useContext(userContext);
     const { socket } = useContext(SocketContext);
 
     const [reactionPopup, setReactionPopup] = useState(null); // stores messageId of open popup
@@ -357,6 +359,35 @@ const AllchatMsg = ({ onStartCall }) => {
                                             } catch (e) {
                                                 console.error("Failed to parse contact card", e);
                                             }
+                                        }
+
+                                        if (decryptedText.startsWith("[Unable to decrypt") || decryptedText.startsWith("E2:")) {
+                                            return (
+                                                <div
+                                                    className={`rounded-2xl px-3.5 py-2.5 text-xs border flex items-center gap-2.5 select-none ${
+                                                        isSender
+                                                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
+                                                            : 'bg-[var(--c-surface)] border-[var(--c-line)] text-[var(--c-text-3)]'
+                                                    } max-w-xs sm:max-w-md shadow-xs`}
+                                                >
+                                                    <FiLock className="text-base shrink-0 opacity-80" />
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className="font-semibold text-[var(--c-text-2)]">Unable to decrypt message</span>
+                                                        <span className="text-[11px] text-[var(--c-text-3)] leading-tight">
+                                                            This message was encrypted with a different key session.
+                                                        </span>
+                                                        {identityState === 'RECOVERY_REQUIRED' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setShowRecoveryModal(true)}
+                                                                className="text-left text-[11px] font-semibold text-[#2858E8] hover:underline flex items-center gap-1 mt-0.5 cursor-pointer"
+                                                            >
+                                                                <FiKey className="text-xs" /> Restore Recovery Key
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
                                         }
 
                                         return (

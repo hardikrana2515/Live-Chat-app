@@ -100,12 +100,12 @@ const sendMessage = AsyncHandler(async (req, res) => {
   await Chat.save();
 
   let populatedMessage = await Message.findById(newMessage._id)
-    .populate("Sender", "name avtar email")
+    .populate("Sender", "-password")
     .populate({
       path: "chatId",
       populate: {
         path: "members",
-        select: "name avtar email _id",
+        select: "-password",
       },
     });
 
@@ -152,13 +152,13 @@ const allMessages = AsyncHandler(async (req, res) => {
   const rows = await Message.find(query)
     .sort({ _id: -1 })
     .limit(pageSize + 1)
-    .populate("Sender", "name avtar email")
+    .populate("Sender", "-password")
     .populate("reactions.user", "name avtar")
     .populate({
       path: "chatId",
       populate: {
         path: "members",
-        select: "name avtar email",
+        select: "-password",
       },
     });
 

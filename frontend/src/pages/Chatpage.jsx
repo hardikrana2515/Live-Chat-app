@@ -17,6 +17,9 @@ import VideoCall from '../components/VideoCall'
 import GroupCall from '../components/GroupCall'
 import IncomingCallModal from '../components/IncomingCallModal'
 import LogoutModal from '../components/LogoutModal'
+import KeySetupModal from '../components/KeySetupModal'
+import KeyRecoveryModal from '../components/KeyRecoveryModal'
+import ResetIdentityModal from '../components/ResetIdentityModal'
 import { encryptMessage } from '../utils/EncryptionUtils'
 
 const Chatpage = () => {
@@ -33,6 +36,7 @@ const Chatpage = () => {
   const [inGroupCall, setInGroupCall] = useState(false);
   const [groupCallTarget, setGroupCallTarget] = useState(null);
   const [callType, setCallType] = useState('video'); // 'video' | 'audio'
+  const [isInitiator, setIsInitiator] = useState(false);
 
   useEffect(() => {
     if (!socket?.current) return;
@@ -66,10 +70,30 @@ const Chatpage = () => {
       setCallData(null);
     };
 
+    const handleGroupCallEnded = ({ chatId: endedChatId, duration, callType: cType, reason }) => {
+      console.log("[Chatpage] Group call ended live:", endedChatId, reason);
+      const endedStr = endedChatId?.toString();
+      setCallData(prev => {
+        if (prev?.isGroup && prev?.chatId?.toString() === endedStr) {
+          return null;
+        }
+        return prev;
+      });
+      setInGroupCall(prevInCall => {
+        if (prevInCall) {
+          return false;
+        }
+        return prevInCall;
+      });
+      setGroupCallTarget(null);
+      setIsInitiator(false);
+    };
+
     socket.current.on("callUser", handleCallUser);
     socket.current.on("callEnded", handleCallEnded);
     socket.current.on("callHandled", handleCallHandled);
     socket.current.on("incomingGroupCall", handleIncomingGroupCall);
+    socket.current.on("groupCallEnded", handleGroupCallEnded);
 
     return () => {
       if (socket.current) {
@@ -77,6 +101,7 @@ const Chatpage = () => {
         socket.current.off("callEnded", handleCallEnded);
         socket.current.off("callHandled", handleCallHandled);
         socket.current.off("incomingGroupCall", handleIncomingGroupCall);
+        socket.current.off("groupCallEnded", handleGroupCallEnded);
       }
     };
   }, [socket, isConnected]);
@@ -87,12 +112,13 @@ const Chatpage = () => {
     return members.find((m) => ((m?._id || m)?.toString()) !== myId) || null;
   };
 
-  const startCall = (type = 'video') => {
+  const startCall = (type = 'video', forceInitiator = true) => {
     if (selectedchat?.isGroup) {
       setInGroupCall(true);
       setCallType(type);
       setGroupCallTarget(selectedchat);
-      if (socket?.current) {
+      setIsInitiator(forceInitiator);
+      if (socket?.current && forceInitiator) {
         socket.current.emit("startGroupCall", {
           chatId: selectedchat._id,
           chatName: selectedchat.chatname,
@@ -117,6 +143,7 @@ const Chatpage = () => {
       setGroupCallTarget(targetGroup);
       setInGroupCall(true);
       setCallType(callData.callType);
+      setIsInitiator(false);
       setCallData(null);
     } else {
       setInCall(true);
@@ -194,7 +221,8 @@ const Chatpage = () => {
     setInGroupCall(false);
     const targetChat = groupCallTarget || selectedchat;
 
-    if (stats && targetChat?._id && Send) {
+    // Only the initiator (or caller flagged with shouldLogCall) logs to the chat timeline to prevent duplicates
+    if (stats?.shouldLogCall && targetChat?._id && Send) {
       try {
         const payload = `[CALL_LOG]:::${JSON.stringify({
           type: stats.type || callType || 'video',
@@ -213,6 +241,7 @@ const Chatpage = () => {
       }
     }
     setGroupCallTarget(null);
+    setIsInitiator(false);
   };
 
   return (
@@ -226,6 +255,9 @@ const Chatpage = () => {
       {card && <Account />}
       {pass && <UpdatePassword />}
       {logoutModal && <LogoutModal />}
+      <KeySetupModal />
+      <KeyRecoveryModal />
+      <ResetIdentityModal />
 
       {/* Call Modals (global: work even with no chat open) */}
       {callData?.isIncoming && !inCall && !inGroupCall && (
@@ -258,6 +290,7 @@ const Chatpage = () => {
           chat={groupCallTarget}
           callType={callType}
           onEndCall={endGroupCall}
+          isInitiator={isInitiator}
         />
       )}
 

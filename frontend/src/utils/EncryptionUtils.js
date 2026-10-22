@@ -25,8 +25,12 @@ const warnLegacyOnce = (reason) => {
 
 const syncEncrypt = (text, key) => CryptoJS.AES.encrypt(text, key).toString();
 const syncDecrypt = (ciphertext, key) => {
-    const bytes = CryptoJS.AES.decrypt(ciphertext, key);
-    return bytes.toString(CryptoJS.enc.Utf8);
+    try {
+        const bytes = CryptoJS.AES.decrypt(ciphertext, key);
+        return bytes.toString(CryptoJS.enc.Utf8) || "";
+    } catch {
+        return "";
+    }
 };
 
 // Per-conversation (raw AES-256 key) encryption carries its own random IV:
@@ -130,15 +134,18 @@ export const decryptMessage = (ciphertext, chatId) => {
             }
             const original = e2DecryptBody(ciphertext.slice(E2_PREFIX.length), key);
             if (original) return original;
-            // Fallback for cases where key rotation or legacy wrap was used
-            const fallback = syncDecrypt(ciphertext.slice(E2_PREFIX.length), LEGACY_KEY);
-            return fallback || "[Unable to decrypt message]";
+            
+            // If decrypting with cached key failed, request background re-derivation
+            if (chatId) {
+                ensureChatKey(chatId).catch(() => {});
+            }
+            return "[Unable to decrypt message]";
         }
         // Legacy ciphertext (old static key) or plain text (e.g. old polls)
         const original = syncDecrypt(ciphertext, LEGACY_KEY);
         return original || ciphertext;
     } catch {
-        return ciphertext;
+        return ciphertext.startsWith(E2_PREFIX) ? "[Unable to decrypt message]" : ciphertext;
     }
 };
 

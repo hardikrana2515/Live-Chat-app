@@ -137,16 +137,16 @@ const ChatBox = ({ onStartCall }) => {
                 <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                     {/* Call Buttons (Voice and Video for 1:1 and Groups) */}
                     <button
-                        onClick={() => onStartCall?.('audio')}
+                        onClick={() => onStartCall?.('audio', !activeGroupCall?.isActive)}
                         className="p-2 rounded-xl bg-[var(--c-surface)] hover:bg-[var(--c-raised)] border border-[var(--c-line)] text-[var(--c-text-2)] hover:text-[var(--c-text)] transition-all shadow-sm"
-                        title={selectedchat.isGroup ? "Start Group Voice Call" : "Start Voice Call"}
+                        title={selectedchat.isGroup ? (activeGroupCall?.isActive ? "Join Group Voice Call" : "Start Group Voice Call") : "Start Voice Call"}
                     >
                         <IoCall className="text-base" />
                     </button>
                     <button
-                        onClick={() => onStartCall?.('video')}
+                        onClick={() => onStartCall?.('video', !activeGroupCall?.isActive)}
                         className="p-2 rounded-xl bg-[var(--c-surface)] hover:bg-[var(--c-raised)] border border-[var(--c-line)] text-[var(--c-text-2)] hover:text-[var(--c-text)] transition-all shadow-sm"
-                        title={selectedchat.isGroup ? "Start Group Video Call" : "Start Video Call"}
+                        title={selectedchat.isGroup ? (activeGroupCall?.isActive ? "Join Group Video Call" : "Start Group Video Call") : "Start Video Call"}
                     >
                         <IoVideocam className="text-base" />
                     </button>
@@ -251,7 +251,7 @@ const ChatBox = ({ onStartCall }) => {
                         <span>Live Group {activeGroupCall.callType === 'video' ? 'Video' : 'Voice'} Call ({activeGroupCall.participantCount || 1} connected)</span>
                     </div>
                     <button
-                        onClick={() => onStartCall?.(activeGroupCall.callType || 'video')}
+                        onClick={() => onStartCall?.(activeGroupCall.callType || 'video', false)}
                         className="px-3.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow transition"
                     >
                         Join Call

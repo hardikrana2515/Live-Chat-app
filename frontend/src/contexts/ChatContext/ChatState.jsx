@@ -56,8 +56,9 @@ const ChatState = ({ children }) => {
       if (!chat.find((c) => c._id === newChat._id)) {
         setChat([newChat, ...chat])
       }
-      // console.log(res.data)
-      setChatLoading(false)
+      setSelectedchat(newChat);
+      setChatLoading(false);
+      return newChat;
     } catch (e) {
       const errorMessage = e?.response?.data?.message || "Failed to Create Chat"
       throw new Error(errorMessage)

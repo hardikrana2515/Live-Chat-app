@@ -65,7 +65,7 @@ const Message = ({ onStartCall }) => {
         socket.current.emit("join chat", currentChatId);
 
         const handleMessageReceived = (newMsg) => {
-            const incomingChatId = (newMsg.chat?._id || newMsg.chat)?.toString();
+            const incomingChatId = cidOf(newMsg);
             if (incomingChatId === currentChatId) {
                 setAllmsg((prev) => {
                     if (prev.some(m => m._id === newMsg._id)) return prev;
@@ -219,9 +219,16 @@ const formatFileSize = (bytes) => {
 
 
 
+const MAX_MEDIA_BYTES = 150 * 1024 * 1024; // 150 MB
+
 const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+        if (file.size > MAX_MEDIA_BYTES) {
+            toast.error("File exceeds the 150MB upload limit");
+            e.target.value = '';
+            return;
+        }
         setMedia(file);
         toast.success("Media attached!");
     }

@@ -69,6 +69,11 @@ const AccessChat = AsyncHandler(async (req, res) => {
       .populate("members","-password")
       .populate("creator", "-password");
 
+    const io = req.app.get('io');
+    if (io) {
+      io.to(UserId.toString()).emit("conversation created", FullChat);
+    }
+
     res
       .status(200)
       .json(new ApiResponse(200, FullChat, "chat created !!!hureee .."));

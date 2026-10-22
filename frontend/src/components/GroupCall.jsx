@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Peer from 'simple-peer';
+import { toast } from 'react-toastify';
 import { IoMic, IoMicOff, IoVideocam, IoVideocamOff, IoCall, IoPeople } from "react-icons/io5";
 
 const getAvatarUrl = (avatar) => {
@@ -112,7 +113,7 @@ const RemotePeerVideoTile = ({ peerObj, callType }) => {
     );
 };
 
-const GroupCall = ({ socket, user, chat, callType = 'video', onEndCall }) => {
+const GroupCall = ({ socket, user, chat, callType = 'video', onEndCall, isInitiator = false }) => {
     const [, setLocalStream] = useState(null);
     const [muted, setMuted] = useState(false);
     const [videoEnabled, setVideoEnabled] = useState(callType === 'video');
@@ -123,6 +124,8 @@ const GroupCall = ({ socket, user, chat, callType = 'video', onEndCall }) => {
     const peersRef = useRef([]); // holds { peerID, peer, user, stream }
     const streamRef = useRef(null);
     const startTimeRef = useRef(null);
+    const hadPeersRef = useRef(false);
+    const isEndingRef = useRef(false);
 
     const chatId = chat?._id?.toString();
     const myId = (user?._id || user)?.toString();
@@ -236,123 +239,165 @@ const GroupCall = ({ socket, user, chat, callType = 'video', onEndCall }) => {
                 });
             });
 
-            peersRef.current.push({ peerID: socketId, peer, user: newUser });
-        };
+                peersRef.current.push({ peerID: socketId, peer, user: newUser });
+                hadPeersRef.current = true;
+            };
 
-        // 3. User receives signal (Offer or Answer)
-        const handleReceiveSignal = ({ signal, callerId, user: callerUser }) => {
-            console.log("[GroupCall] Received signal from:", callerId);
+            // 3. User receives signal (Offer or Answer)
+            const handleReceiveSignal = ({ signal, callerId, user: callerUser }) => {
+                console.log("[GroupCall] Received signal from:", callerId);
 
-            const existingPeerObj = peersRef.current.find(p => p.peerID === callerId);
+                const existingPeerObj = peersRef.current.find(p => p.peerID === callerId);
 
-            if (existingPeerObj) {
-                // Signal is an answer returning to initiator
-                existingPeerObj.peer.signal(signal);
-            } else {
-                // New incoming connection from an existing member -> Create non-initiator peer
-                if (!streamRef.current) return;
+                if (existingPeerObj) {
+                    // Signal is an answer returning to initiator
+                    existingPeerObj.peer.signal(signal);
+                } else {
+                    // New incoming connection from an existing member -> Create non-initiator peer
+                    if (!streamRef.current) return;
 
-                const peer = new Peer({
-                    initiator: false,
-                    trickle: false,
-                    stream: streamRef.current,
-                    config: ICE_CONFIG
-                });
-
-                peer.on("signal", (retSignal) => {
-                    socket.emit("groupCallSignal", {
-                        userToSignal: callerId,
-                        callerId: socket.id,
-                        signal: retSignal,
-                        user: {
-                            _id: myId,
-                            name: user?.name,
-                            userName: user?.userName,
-                            avtar: user?.avtar
-                        }
+                    const peer = new Peer({
+                        initiator: false,
+                        trickle: false,
+                        stream: streamRef.current,
+                        config: ICE_CONFIG
                     });
-                });
 
-                peer.on("stream", (remoteStream) => {
-                    setPeers(prev => {
-                        const existing = prev.find(p => p.peerID === callerId);
-                        if (existing) {
-                            return prev.map(p => p.peerID === callerId ? { ...p, stream: remoteStream } : p);
-                        }
-                        return [...prev, { peerID: callerId, peer, user: callerUser, stream: remoteStream, isMuted: false, isCameraOff: false }];
+                    peer.on("signal", (retSignal) => {
+                        socket.emit("groupCallSignal", {
+                            userToSignal: callerId,
+                            callerId: socket.id,
+                            signal: retSignal,
+                            user: {
+                                _id: myId,
+                                name: user?.name,
+                                userName: user?.userName,
+                                avtar: user?.avtar
+                            }
+                        });
                     });
+
+                    peer.on("stream", (remoteStream) => {
+                        hadPeersRef.current = true;
+                        setPeers(prev => {
+                            const existing = prev.find(p => p.peerID === callerId);
+                            if (existing) {
+                                return prev.map(p => p.peerID === callerId ? { ...p, stream: remoteStream } : p);
+                            }
+                            return [...prev, { peerID: callerId, peer, user: callerUser, stream: remoteStream, isMuted: false, isCameraOff: false }];
+                        });
+                    });
+
+                    peer.signal(signal);
+                    peersRef.current.push({ peerID: callerId, peer, user: callerUser });
+                    hadPeersRef.current = true;
+                }
+            };
+
+            // 4. Remote peer leaves
+            const handleUserLeft = ({ socketId }) => {
+                console.log("[GroupCall] User left group call:", socketId);
+                const peerObj = peersRef.current.find(p => p.peerID === socketId);
+                if (peerObj) {
+                    try { peerObj.peer.destroy(); } catch { /* ignore */ }
+                }
+                peersRef.current = peersRef.current.filter(p => p.peerID !== socketId);
+                setPeers(prev => {
+                    const nextPeers = prev.filter(p => p.peerID !== socketId);
+                    // If we previously had connected peers and now have 0, auto-end if server hasn't already
+                    if (hadPeersRef.current && nextPeers.length === 0) {
+                        setTimeout(() => {
+                            if (peersRef.current.length === 0 && !isEndingRef.current) {
+                                toast.info("All participants left. Call ended.");
+                                teardown(true);
+                            }
+                        }, 800);
+                    }
+                    return nextPeers;
                 });
+            };
 
-                peer.signal(signal);
-                peersRef.current.push({ peerID: callerId, peer, user: callerUser });
-            }
-        };
+            // 5. Remote peer camera toggle
+            const handleRemoteCameraToggle = ({ socketId, enabled }) => {
+                setPeers(prev => prev.map(p => p.peerID === socketId ? { ...p, isCameraOff: !enabled } : p));
+            };
 
-        // 4. Remote peer leaves
-        const handleUserLeft = ({ socketId }) => {
-            console.log("[GroupCall] User left group call:", socketId);
-            const peerObj = peersRef.current.find(p => p.peerID === socketId);
-            if (peerObj) {
-                try { peerObj.peer.destroy(); } catch { /* ignore */ }
-            }
-            peersRef.current = peersRef.current.filter(p => p.peerID !== socketId);
-            setPeers(prev => prev.filter(p => p.peerID !== socketId));
-        };
+            // 6. Remote peer mute toggle
+            const handleRemoteMuteToggle = ({ socketId, isMuted }) => {
+                setPeers(prev => prev.map(p => p.peerID === socketId ? { ...p, isMuted } : p));
+            };
 
-        // 5. Remote peer camera toggle
-        const handleRemoteCameraToggle = ({ socketId, enabled }) => {
-            setPeers(prev => prev.map(p => p.peerID === socketId ? { ...p, isCameraOff: !enabled } : p));
-        };
+            // 7. Group call ended globally by server (initiator left or participants dropped to <= 1)
+            const handleServerGroupCallEnded = ({ chatId: endedChatId, duration: endDuration, reason }) => {
+                console.log("[GroupCall] Received groupCallEnded:", endedChatId, reason);
+                if (endedChatId?.toString() === chatId?.toString()) {
+                    if (reason === "initiator_left") {
+                        toast.info("Group call ended by the host");
+                    } else if (reason === "single_participant_left") {
+                        toast.info("Call ended (all other participants left)");
+                    }
+                    teardown(false);
+                }
+            };
 
-        // 6. Remote peer mute toggle
-        const handleRemoteMuteToggle = ({ socketId, isMuted }) => {
-            setPeers(prev => prev.map(p => p.peerID === socketId ? { ...p, isMuted } : p));
-        };
+            socket.on("allGroupCallUsers", handleAllUsers);
+            socket.on("userJoinedGroupCall", handleUserJoined);
+            socket.on("userGroupCallSignal", handleReceiveSignal);
+            socket.on("userLeftGroupCall", handleUserLeft);
+            socket.on("groupCameraToggle", handleRemoteCameraToggle);
+            socket.on("groupMuteToggle", handleRemoteMuteToggle);
+            socket.on("groupCallEnded", handleServerGroupCallEnded);
 
-        socket.on("allGroupCallUsers", handleAllUsers);
-        socket.on("userJoinedGroupCall", handleUserJoined);
-        socket.on("userGroupCallSignal", handleReceiveSignal);
-        socket.on("userLeftGroupCall", handleUserLeft);
-        socket.on("groupCameraToggle", handleRemoteCameraToggle);
-        socket.on("groupMuteToggle", handleRemoteMuteToggle);
+            return () => {
+                socket.off("allGroupCallUsers", handleAllUsers);
+                socket.off("userJoinedGroupCall", handleUserJoined);
+                socket.off("userGroupCallSignal", handleReceiveSignal);
+                socket.off("userLeftGroupCall", handleUserLeft);
+                socket.off("groupCameraToggle", handleRemoteCameraToggle);
+                socket.off("groupMuteToggle", handleRemoteMuteToggle);
+                socket.off("groupCallEnded", handleServerGroupCallEnded);
+            };
+        }, [socket, myId, user, chatId]);
 
-        return () => {
-            socket.off("allGroupCallUsers", handleAllUsers);
-            socket.off("userJoinedGroupCall", handleUserJoined);
-            socket.off("userGroupCallSignal", handleReceiveSignal);
-            socket.off("userLeftGroupCall", handleUserLeft);
-            socket.off("groupCameraToggle", handleRemoteCameraToggle);
-            socket.off("groupMuteToggle", handleRemoteMuteToggle);
-        };
-    }, [socket, myId, user]);
+        // Teardown helper
+        const teardown = (notifySocket = true) => {
+            if (isEndingRef.current) return;
+            isEndingRef.current = true;
 
-    // Teardown helper
-    const handleLeave = () => {
-        // Destroy all peer connections
-        peersRef.current.forEach(({ peer }) => {
-            try { peer.destroy(); } catch { /* ignore */ }
-        });
-        peersRef.current = [];
-
-        // Stop local hardware tracks
-        if (streamRef.current) {
-            streamRef.current.getTracks().forEach(t => t.stop());
-            streamRef.current = null;
-        }
-
-        // Notify socket server
-        if (socket && chatId) {
-            socket.emit("leaveGroupCall", { chatId });
-        }
-
-        if (onEndCall) {
-            onEndCall({
-                type: callType,
-                duration,
-                isGroup: true
+            // Destroy all peer connections
+            peersRef.current.forEach(({ peer }) => {
+                try { peer.destroy(); } catch { /* ignore */ }
             });
-        }
-    };
+            peersRef.current = [];
+
+            // Stop local hardware tracks
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(t => t.stop());
+                streamRef.current = null;
+            }
+
+            // Notify socket server
+            if (notifySocket && socket && chatId) {
+                if (isInitiator) {
+                    socket.emit("endGroupCall", { chatId });
+                } else {
+                    socket.emit("leaveGroupCall", { chatId });
+                }
+            }
+
+            if (onEndCall) {
+                onEndCall({
+                    type: callType,
+                    duration,
+                    isGroup: true,
+                    shouldLogCall: isInitiator // Only initiator posts the call log
+                });
+            }
+        };
+
+        const handleLeave = () => {
+            teardown(true);
+        };
 
     // Toggle Microphone
     const toggleMute = () => {
@@ -534,10 +579,11 @@ const GroupCall = ({ socket, user, chat, callType = 'video', onEndCall }) => {
                 {/* Leave / End Call Button */}
                 <button
                     onClick={handleLeave}
-                    className="w-14 h-14 rounded-full bg-[var(--c-danger)] hover:bg-[var(--c-danger)]/90 text-white flex items-center justify-center text-2xl transition-all shadow-lg transform hover:scale-105"
-                    title="Leave Call"
+                    className="px-6 h-14 rounded-full bg-[var(--c-danger)] hover:bg-[var(--c-danger)]/90 text-white flex items-center justify-center gap-2 text-sm font-semibold transition-all shadow-lg transform hover:scale-105"
+                    title={isInitiator ? "End Call for Everyone" : "Leave Call"}
                 >
-                    <IoCall className="rotate-[135deg]" />
+                    <IoCall className="rotate-[135deg] text-xl" />
+                    <span>{isInitiator ? "End Call" : "Leave"}</span>
                 </button>
             </div>
         </div>

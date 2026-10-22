@@ -451,6 +451,7 @@ const acceptRequest = AsyncHandler(async (req, res) => {
 
   const senderId = user.friendRequests[reqIndex].sender;
 
+  let chatDoc = null;
   if (status === 'accepted') {
     // Look up the sender first — if their account was deleted, don't create
     // a dangling friendship entry.
@@ -475,6 +476,30 @@ const acceptRequest = AsyncHandler(async (req, res) => {
       senderUser.friends.push(user._id);
     }
     await senderUser.save();
+
+    // Automatically ensure a 1-on-1 ChatRoom exists between the new friends
+    let existingChat = await ChatRoom.findOne({
+      isGroup: false,
+      members: { $all: [user._id, senderUser._id] },
+    });
+
+    if (!existingChat) {
+      const createdChat = await ChatRoom.create({
+        isGroup: false,
+        members: [user._id, senderUser._id],
+        creator: user._id,
+      });
+      chatDoc = await ChatRoom.findById(createdChat._id)
+        .populate("members", "-password")
+        .populate("admins", "-password")
+        .populate("creator", "-password");
+    } else {
+      chatDoc = await ChatRoom.findById(existingChat._id)
+        .populate("members", "-password")
+        .populate("admins", "-password")
+        .populate("creator", "-password")
+        .populate("lastMessage");
+    }
   }
 
   // Remove request regardless of accepted/rejected
@@ -484,19 +509,28 @@ const acceptRequest = AsyncHandler(async (req, res) => {
   const io = req.app.get("io");
   if (io) {
     const senderIdStr = senderId ? senderId.toString() : "";
+    const myIdStr = req.user._id.toString();
     if (senderIdStr) {
       io.to(senderIdStr).emit("friend request updated", {
-        fromUser: req.user._id.toString(),
-        status
+        fromUser: myIdStr,
+        status,
+        chat: chatDoc
       });
+      if (chatDoc) {
+        io.to(senderIdStr).emit("conversation created", chatDoc);
+      }
     }
-    io.to(req.user._id.toString()).emit("friend request updated", {
+    io.to(myIdStr).emit("friend request updated", {
       fromUser: senderIdStr,
-      status
+      status,
+      chat: chatDoc
     });
+    if (chatDoc) {
+      io.to(myIdStr).emit("conversation created", chatDoc);
+    }
   }
 
-  res.status(200).json(new ApiResponse(200, {}, `Request ${status}`));
+  res.status(200).json(new ApiResponse(200, { chat: chatDoc }, `Request ${status}`));
 });
 
 const blockUser = AsyncHandler(async (req, res) => {
@@ -537,18 +571,274 @@ const getFriends = AsyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, user.friends, "Friends fetched successfully"));
 });
 
-// Publish this device's ECDH public key so chat peers can derive shared
-// conversation keys. The private key never leaves the device. (Issue 3.2)
+// Identity Vault endpoints for End-to-End Encryption key recovery
+const getIdentityVault = AsyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id).select("identity publicKey");
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const hasIdentity = Boolean(user.identity?.publicKey || user.publicKey);
+  const hasVault = Boolean(user.identity?.vault?.ciphertext);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        hasIdentity,
+        hasVault,
+        identityId: user.identity?.identityId || "",
+        version: user.identity?.version || 1,
+        publicKey: user.identity?.publicKey || user.publicKey || "",
+        publicKeyFingerprint: user.identity?.publicKeyFingerprint || "",
+        vault: hasVault ? user.identity.vault : null,
+      },
+      "Identity vault status retrieved"
+    )
+  );
+});
+
+const registerIdentityVault = AsyncHandler(async (req, res) => {
+  const { identityId, version, publicKey, publicKeyFingerprint, vault } = req.body;
+
+  if (!publicKey || typeof publicKey !== "string" || publicKey.length > 500) {
+    return res.status(400).json(new ApiResponse(400, null, "A valid public key is required"));
+  }
+
+  if (!vault || typeof vault !== "object") {
+    return res.status(400).json(new ApiResponse(400, null, "Vault envelope is required"));
+  }
+
+  const { ciphertext, nonce, salt, aad, kdf, cipher, kdfIterations, formatVersion } = vault;
+
+  // Strict validation of cryptographic envelope bounds
+  if (!ciphertext || typeof ciphertext !== "string" || ciphertext.length > 8192) {
+    return res.status(400).json(new ApiResponse(400, null, "Invalid ciphertext envelope"));
+  }
+  if (!nonce || typeof nonce !== "string" || nonce.length > 100) {
+    return res.status(400).json(new ApiResponse(400, null, "Invalid nonce"));
+  }
+  if (!salt || typeof salt !== "string" || salt.length > 200) {
+    return res.status(400).json(new ApiResponse(400, null, "Invalid salt"));
+  }
+  if (kdf && kdf !== "PBKDF2-HMAC-SHA256") {
+    return res.status(400).json(new ApiResponse(400, null, "Unsupported KDF"));
+  }
+  if (cipher && cipher !== "AES-256-GCM") {
+    return res.status(400).json(new ApiResponse(400, null, "Unsupported cipher"));
+  }
+  if (kdfIterations && (typeof kdfIterations !== "number" || kdfIterations < 10000 || kdfIterations > 500000)) {
+    return res.status(400).json(new ApiResponse(400, null, "KDF iterations out of allowed bounds (10,000 - 500,000)"));
+  }
+
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  // Prevent silent identity replacement: if an identity with vault is already registered, reject
+  if (user.identity?.publicKey && user.identity?.vault?.ciphertext) {
+    return res.status(409).json(
+      new ApiResponse(
+        409,
+        {
+          existingIdentityId: user.identity.identityId,
+          version: user.identity.version,
+          publicKey: user.identity.publicKey,
+        },
+        "An identity vault is already registered for this account. Silent overwrites are forbidden. Use recovery or explicit reset."
+      )
+    );
+  }
+
+  user.publicKey = publicKey;
+  user.identity = {
+    identityId: identityId || `id_${user._id}_${Date.now()}`,
+    version: typeof version === "number" ? version : 1,
+    publicKey,
+    publicKeyFingerprint: publicKeyFingerprint || "",
+    vault: {
+      formatVersion: formatVersion || 1,
+      cipher: cipher || "AES-256-GCM",
+      kdf: kdf || "PBKDF2-HMAC-SHA256",
+      kdfIterations: kdfIterations || 100000,
+      salt,
+      nonce,
+      ciphertext,
+      aad: aad || "",
+      updatedAt: new Date(),
+    },
+  };
+
+  await user.save();
+
+  const io = req.app.get("io");
+  if (io) {
+    io.emit("peer key updated", {
+      userId: user._id.toString(),
+      publicKey: user.identity.publicKey,
+    });
+  }
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        identityId: user.identity.identityId,
+        version: user.identity.version,
+        publicKey: user.identity.publicKey,
+      },
+      "Identity vault successfully registered"
+    )
+  );
+});
+
+const updateIdentityVault = AsyncHandler(async (req, res) => {
+  const { expectedVersion, vault } = req.body;
+
+  if (!vault || typeof vault !== "object" || !vault.ciphertext || !vault.nonce || !vault.salt) {
+    return res.status(400).json(new ApiResponse(400, null, "Valid vault envelope is required"));
+  }
+
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (typeof expectedVersion === "number" && user.identity?.version !== expectedVersion) {
+    return res.status(409).json(
+      new ApiResponse(
+        409,
+        { currentVersion: user.identity?.version },
+        "Vault version conflict. The vault was updated concurrently by another session."
+      )
+    );
+  }
+
+  user.identity.vault = {
+    formatVersion: vault.formatVersion || 1,
+    cipher: vault.cipher || "AES-256-GCM",
+    kdf: vault.kdf || "PBKDF2-HMAC-SHA256",
+    kdfIterations: vault.kdfIterations || 100000,
+    salt: vault.salt,
+    nonce: vault.nonce,
+    ciphertext: vault.ciphertext,
+    aad: vault.aad || "",
+    updatedAt: new Date(),
+  };
+  user.identity.version = (user.identity?.version || 1) + 1;
+
+  await user.save();
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        identityId: user.identity.identityId,
+        version: user.identity.version,
+      },
+      "Vault envelope updated successfully"
+    )
+  );
+});
+
+const resetIdentity = AsyncHandler(async (req, res) => {
+  const { password, confirmReset } = req.body;
+
+  if (!confirmReset) {
+    return res.status(400).json(
+      new ApiResponse(
+        400,
+        null,
+        "Explicit confirmation is required. Historical messages encrypted with your old key will become permanently unreadable."
+      )
+    );
+  }
+
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const isCorrect = await user.comparePassword(password);
+  if (!isCorrect) {
+    return res.status(400).json(new ApiResponse(400, null, "Invalid account password. Identity reset aborted."));
+  }
+
+  user.identity = {
+    identityId: "",
+    version: (user.identity?.version || 1) + 1,
+    publicKey: "",
+    publicKeyFingerprint: "",
+    vault: {
+      formatVersion: 1,
+      cipher: "AES-256-GCM",
+      kdf: "PBKDF2-HMAC-SHA256",
+      kdfIterations: 100000,
+      salt: "",
+      nonce: "",
+      ciphertext: "",
+      aad: "",
+      updatedAt: null,
+    },
+  };
+  user.publicKey = "";
+  await user.save();
+
+  const ioReset = req.app.get("io");
+  if (ioReset) {
+    ioReset.emit("peer key updated", {
+      userId: user._id.toString(),
+      publicKey: "",
+    });
+  }
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { version: user.identity.version },
+      "Identity reset successfully. You may now create a new encryption keypair and vault."
+    )
+  );
+});
+
+// Guarded setPublicKey: prevents silent replacement of existing registered public key
 const setPublicKey = AsyncHandler(async (req, res) => {
-  const { publicKey } = req.body;
+  const { publicKey, publicKeyFingerprint } = req.body;
 
   if (!publicKey || typeof publicKey !== "string" || publicKey.length > 500) {
     return res.status(400).json(new ApiResponse(400, null, "A valid public key is required"));
   }
 
   const user = await User.findById(req.user._id);
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const existingKey = user.identity?.publicKey || user.publicKey;
+  if (existingKey && existingKey !== publicKey) {
+    return res.status(409).json(
+      new ApiResponse(
+        409,
+        { existingPublicKey: existingKey },
+        "Cannot overwrite existing registered public key. An identity is already bound to this account. Use recovery or explicit reset."
+      )
+    );
+  }
+
   user.publicKey = publicKey;
+  if (!user.identity) user.identity = {};
+  user.identity.publicKey = publicKey;
+  if (publicKeyFingerprint) user.identity.publicKeyFingerprint = publicKeyFingerprint;
   await user.save();
+
+  const ioPub = req.app.get("io");
+  if (ioPub) {
+    ioPub.emit("peer key updated", {
+      userId: user._id.toString(),
+      publicKey: user.publicKey,
+    });
+  }
 
   res.status(200).json(new ApiResponse(200, { publicKey: user.publicKey }, "Public key saved"));
 });
@@ -569,5 +859,9 @@ export {
   getFriends,
   blockUser,
   unblockUser,
-  setPublicKey
+  setPublicKey,
+  getIdentityVault,
+  registerIdentityVault,
+  updateIdentityVault,
+  resetIdentity
 };

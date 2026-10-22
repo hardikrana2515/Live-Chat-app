@@ -24,7 +24,7 @@ import {
 } from '../utils/SoundUtils';
 
 const Account = () => {
-  const { setCard, user, GetUser, UploadImg, updatePassword, logout, setLogoutModal } = useContext(userContext);
+  const { setCard, user, GetUser, UploadImg, updatePassword, logout, setLogoutModal, setShowSetupModal, setShowRecoveryModal, vaultData, identityState } = useContext(userContext);
   const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'settings'
 
   // Workspace preferences states
@@ -506,6 +506,48 @@ const Account = () => {
                       }`}
                     />
                   </button>
+                </div>
+              </div>
+
+              {/* Encryption & Security Key Vault */}
+              <div className="p-3.5 bg-[var(--c-surface)] border border-[var(--c-border-soft)] rounded-2xl flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FiShield className="text-[#2858E8] text-sm" />
+                    <span className="text-xs font-semibold text-[var(--c-text)]">End-to-End Encryption</span>
+                  </div>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    vaultData?.hasVault ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-500 border border-amber-500/30'
+                  }`}>
+                    {vaultData?.hasVault ? 'Vault Active' : 'Backup Pending'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[var(--c-text-3)] leading-relaxed">
+                  Your identity key is backed up zero-knowledge. You can generate a new recovery key or restore existing keys.
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCard(false);
+                      setShowSetupModal(true);
+                    }}
+                    className="flex-1 py-1.5 px-2.5 bg-[var(--c-raised)] hover:bg-[var(--c-hover)] text-[var(--c-text)] text-xs font-medium rounded-lg border border-[var(--c-border-soft)] transition cursor-pointer text-center"
+                  >
+                    {vaultData?.hasVault ? 'Generate New Backup' : 'Set Up Vault'}
+                  </button>
+                  {identityState === 'RECOVERY_REQUIRED' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCard(false);
+                        setShowRecoveryModal(true);
+                      }}
+                      className="flex-1 py-1.5 px-2.5 bg-[#2858E8] hover:bg-[#1f47c2] text-white text-xs font-medium rounded-lg transition cursor-pointer text-center"
+                    >
+                      Restore Key
+                    </button>
+                  )}
                 </div>
               </div>
 

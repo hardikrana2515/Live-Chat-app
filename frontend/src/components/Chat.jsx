@@ -2,9 +2,10 @@ import { useContext, useEffect } from 'react'
 import chatContext from '../contexts/ChatContext/chatcontext'
 import SocketContext from '../contexts/Socket.io.Context/socket.Context'
 import { decryptMessage } from '../utils/EncryptionUtils'
-import { registerChat, clearChatKey, dropChat } from '../utils/cryptoKeys'
+import { registerChat, clearChatKey, dropChat, updatePeerPublicKey, ensureChatKey } from '../utils/cryptoKeys'
 import { toast } from 'react-toastify'
 import { IoPerson, IoImage, IoVideocam, IoDocumentText, IoMic, IoCall } from 'react-icons/io5'
+import { FiLock } from 'react-icons/fi'
 
 // Helper to detect if a conversation has unread incoming messages for current user
 export const isChatUnread = (c, currentUserId) => {
@@ -34,18 +35,69 @@ const Chat = ({ filter = 'all' }) => {
         if (!socket?.current) return;
 
         const handleNewMessage = (newMsg) => {
-            const chatId = newMsg.chat?._id || newMsg.chat;
+            const chatId = (newMsg.chat?._id || newMsg.chatId?._id || newMsg.chatId || newMsg.chat)?.toString();
+            if (!chatId) return;
+
+            const incomingChat = (typeof newMsg.chat === 'object' && newMsg.chat?._id)
+                ? newMsg.chat
+                : (typeof newMsg.chatId === 'object' && newMsg.chatId?._id)
+                    ? newMsg.chatId
+                    : null;
+
+            if (incomingChat) {
+                registerChat(incomingChat);
+                if (user?._id) {
+                    ensureChatKey(incomingChat, user._id);
+                }
+            }
+
             if (setChat) {
                 setChat((prevChats) => {
-                    if (!prevChats) return prevChats;
-                    return prevChats.map((c) => {
-                        if (c._id === chatId) {
-                            return { ...c, lastMessage: newMsg, updatedAt: new Date().toISOString() };
-                        }
-                        return c;
-                    }).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+                    if (!prevChats) return incomingChat ? [{ ...incomingChat, lastMessage: newMsg, updatedAt: new Date().toISOString() }] : prevChats;
+                    const existingIndex = prevChats.findIndex((c) => c._id?.toString() === chatId);
+                    if (existingIndex !== -1) {
+                        return prevChats.map((c) => {
+                            if (c._id?.toString() === chatId) {
+                                return {
+                                    ...c,
+                                    ...(incomingChat || {}),
+                                    lastMessage: newMsg,
+                                    updatedAt: new Date().toISOString()
+                                };
+                            }
+                            return c;
+                        }).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+                    } else if (incomingChat) {
+                        return [
+                            { ...incomingChat, lastMessage: newMsg, updatedAt: new Date().toISOString() },
+                            ...prevChats
+                        ];
+                    }
+                    return prevChats;
                 });
             }
+
+            // Sync with backend to guarantee unread counts and conversation list stay in sync
+            Allchat();
+        };
+
+        const handleConversationCreated = async (newChat) => {
+            if (!newChat || !newChat._id) return;
+            registerChat(newChat);
+            if (user?._id) {
+                await ensureChatKey(newChat, user._id);
+            }
+            if (setChat) {
+                setChat((prevChats) => {
+                    if (!prevChats) return [newChat];
+                    const exists = prevChats.some((c) => c._id?.toString() === newChat._id?.toString());
+                    if (exists) {
+                        return prevChats.map((c) => c._id?.toString() === newChat._id?.toString() ? { ...c, ...newChat } : c);
+                    }
+                    return [newChat, ...prevChats];
+                });
+            }
+            Allchat();
         };
 
         const handleMessageEdited = (updatedMsg) => {
@@ -170,12 +222,20 @@ const handleLocalKeyRequest = (e) => {
 };
 window.addEventListener('talkyy:request-group-key', handleLocalKeyRequest);
 
+const handlePeerKeyUpdated = ({ userId: peerUid, publicKey: newPubKey }) => {
+    if (!peerUid || String(peerUid) === String(user?._id)) return;
+    updatePeerPublicKey(peerUid, newPubKey);
+    Allchat();
+};
+
 socket.current.on("message received", handleNewMessage);
 socket.current.on("message edited", handleMessageEdited);
 socket.current.on("message deleted", handleMessageDeleted);
 socket.current.on("group updated", handleGroupUpdated);
 socket.current.on("messages read", handleMessagesRead);
 socket.current.on("group key requested", handleGroupKeyRequested);
+socket.current.on("peer key updated", handlePeerKeyUpdated);
+socket.current.on("conversation created", handleConversationCreated);
 
 return () => {
     window.removeEventListener('talkyy:request-group-key', handleLocalKeyRequest);
@@ -186,6 +246,8 @@ return () => {
         socket.current.off("group updated", handleGroupUpdated);
         socket.current.off("messages read", handleMessagesRead);
         socket.current.off("group key requested", handleGroupKeyRequested);
+        socket.current.off("peer key updated", handlePeerKeyUpdated);
+        socket.current.off("conversation created", handleConversationCreated);
     }
 };
 }, [socket, isConnected, setChat, Allchat, setSelectedchat, selectedchat, user, healGroupKeys, chat]);
@@ -296,6 +358,15 @@ return () => {
                         </span>
                     );
                 }
+            }
+
+            if (text.startsWith("[Unable to decrypt")) {
+                return (
+                    <span className="inline-flex items-center gap-1 text-[var(--c-text-3)] italic truncate max-w-full">
+                        <FiLock className="text-xs shrink-0" />
+                        <span>Encrypted message</span>
+                    </span>
+                );
             }
 
             return text;

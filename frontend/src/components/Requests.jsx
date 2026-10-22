@@ -1,19 +1,38 @@
 import React, { useContext, useEffect } from 'react';
 import userContext from '../contexts/UserContext/userContext';
+import chatContext from '../contexts/ChatContext/chatcontext';
+import SocketContext from '../contexts/Socket.io.Context/socket.Context';
+import { registerChat, ensureChatKey } from '../utils/cryptoKeys';
 import { TiTick, TiTimes } from "react-icons/ti";
 
 const Requests = () => {
     const { getFriendRequests, friendRequests, acceptRequest, refreshUser } = useContext(userContext);
+    const { Allchat, setSelectedchat, user } = useContext(chatContext);
+    const { socket } = useContext(SocketContext);
 
     useEffect(() => {
         getFriendRequests();
     }, []);
 
     const handleAction = async (requestId, status) => {
-        const success = await acceptRequest(requestId, status);
-        if (success) {
+        const resData = await acceptRequest(requestId, status);
+        if (resData) {
+            if (socket?.current) {
+                socket.current.emit("friend request responded", {
+                    targetUserId: String(requestId),
+                    status
+                });
+            }
             getFriendRequests(); // Refresh list
             refreshUser(); // Refresh friends list
+            await Allchat(); // Refresh conversations list
+
+            const newChat = resData?.chat;
+            if (status === 'accepted' && newChat) {
+                registerChat(newChat);
+                await ensureChatKey(newChat, user?._id);
+                setSelectedchat(newChat);
+            }
         }
     };
 
