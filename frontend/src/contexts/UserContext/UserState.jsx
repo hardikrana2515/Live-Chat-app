@@ -25,6 +25,7 @@ const UserState = ({ children }) => {
     });
     const [card, setCard] = useState(false)
     const [pass, setpass] = useState(false)
+    const [logoutModal, setLogoutModal] = useState(false);
     const navigate = useNavigate()
 
     // Make the active user available to the E2EE layer during render (before
@@ -271,7 +272,8 @@ const UserState = ({ children }) => {
             login, setLogin, signup, LoginFunc, setError, error,
             Alluser, setLoading, searchUser, setSearchUser, GetUser, refreshUser,
             user, logout, setCard, card, UploadImg, updatePassword,
-            setpass, pass, sendRequest, acceptRequest, getFriendRequests, friendRequests
+            setpass, pass, sendRequest, acceptRequest, getFriendRequests, friendRequests,
+            logoutModal, setLogoutModal
         }}>
             {children}
         </UserContext.Provider>

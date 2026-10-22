@@ -10,7 +10,7 @@ services:
     networks:
       - talkyy-network
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,11 +22,11 @@ services:
     container_name: talkyy-backend
     restart: unless-stopped
     ports:
-      - "4000:4000"
+      - "4001:4000"
     environment:
       - PORT=4000
       - DATABASE_URI=mongodb://mongodb:27017/ChattApp
-      - JWT_SECRET=talkyy_production_jwt_secret_key_change_me
+      - JWT_SECRET=jwt_secret_key
       - JWT_EXPIRATION=7d
       - CLIENT_URL=http://localhost
       - NODE_ENV=production
@@ -47,7 +47,6 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      - "5173:80"
     depends_on:
       - backend
     networks:

@@ -24,7 +24,7 @@ import {
 } from '../utils/SoundUtils';
 
 const Account = () => {
-  const { setCard, user, GetUser, UploadImg, updatePassword, logout } = useContext(userContext);
+  const { setCard, user, GetUser, UploadImg, updatePassword, logout, setLogoutModal } = useContext(userContext);
   const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'settings'
 
   // Workspace preferences states
@@ -110,9 +110,9 @@ const Account = () => {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setCard(false);
-    await logout();
+    setLogoutModal(true);
   };
 
   const avatarSrc = imgPreview || (

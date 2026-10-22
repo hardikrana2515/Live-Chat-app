@@ -1,12 +1,22 @@
-import React, { useContext } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useContext, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import LoginForm from '../components/LoginForm';
 import SignUp from '../components/SignUp';
 import userContext from '../contexts/UserContext/userContext';
 import { FiShield, FiArrowLeft, FiLock } from 'react-icons/fi';
 
 const Login = () => {
+  const navigate = useNavigate();
   const { login, setLogin, setError } = useContext(userContext);
+
+  // If already logged in, redirect straight to chat
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userInfo = localStorage.getItem('userInfo');
+    if (token && userInfo) {
+      navigate('/chat', { replace: true });
+    }
+  }, [navigate]);
 
   const handleTabChange = (isLoginTab) => {
     setError('');

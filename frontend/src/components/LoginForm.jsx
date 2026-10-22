@@ -32,7 +32,7 @@ const LoginForm = () => {
                 authMethod === 'phone' ? credentials.phone : '',
                 credentials.password
             );
-            navigate('/');
+            navigate('/chat');
         } catch (err) {
             setError(err.message || 'Login failed');
         } finally {

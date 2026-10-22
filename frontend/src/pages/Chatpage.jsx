@@ -16,11 +16,12 @@ import DMsg from '../components/DMsg'
 import VideoCall from '../components/VideoCall'
 import GroupCall from '../components/GroupCall'
 import IncomingCallModal from '../components/IncomingCallModal'
+import LogoutModal from '../components/LogoutModal'
 import { encryptMessage } from '../utils/EncryptionUtils'
 
 const Chatpage = () => {
 
-  const { card, pass } = useContext(userContext)
+  const { card, pass, logoutModal } = useContext(userContext)
   const { groupchat, chatmodal, settingmodal, yesmodal, selectedchat, user, chat, setChat } = useContext(chatContext)
   const { Del, Send } = useContext(messageContext);
   const { socket, isConnected } = useContext(SocketContext);
@@ -224,6 +225,7 @@ const Chatpage = () => {
       {chatmodal && <Groupinfo />}
       {card && <Account />}
       {pass && <UpdatePassword />}
+      {logoutModal && <LogoutModal />}
 
       {/* Call Modals (global: work even with no chat open) */}
       {callData?.isIncoming && !inCall && !inGroupCall && (
