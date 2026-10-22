@@ -9,7 +9,7 @@ import ProtectedRoute from './routes/protected.routes'
 import Chatpage from './pages/Chatpage'
 import ChatState from './contexts/ChatContext/ChatState'
 import MessageState from './contexts/MessageContext/MessageState';
-import SocketStates from './contexts/Socket.io.Context/Socketstates';
+import SocketStates from './contexts/Socket.io.Context/SocketStates';
 import NotFoundpage from './pages/NotFoundpage';
 
 import ForgotPassword from './pages/ForgotPassword';

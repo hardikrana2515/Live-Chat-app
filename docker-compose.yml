@@ -1,0 +1,66 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: talkyy-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - talkyy-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: talkyy-backend
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - DATABASE_URI=mongodb://mongodb:27017/ChattApp
+      - JWT_SECRET=talkyy_production_jwt_secret_key_change_me
+      - JWT_EXPIRATION=7d
+      - CLIENT_URL=http://localhost
+      - NODE_ENV=production
+    volumes:
+      - media_uploads:/app/public/media
+      - image_uploads:/app/public/Image
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - talkyy-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: talkyy-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - talkyy-network
+
+networks:
+  talkyy-network:
+    driver: bridge
+
+volumes:
+  mongo_data:
+    driver: local
+  media_uploads:
+    driver: local
+  image_uploads:
+    driver: local
