@@ -1,4 +1,3 @@
-
 import mongoose from "mongoose";
 import Message from "../models/Message.model.js";
 import ChatRoom from "../models/Chatroom.model.js";
@@ -11,41 +10,68 @@ const sendMessage = AsyncHandler(async (req, res) => {
   const { message, chatId } = req.body;
   const formData = req.file;
 
-  // Check if it's a Poll, Text, or Media message
-  const hasText = typeof message === "string" && message.trim().length > 0;
-  if (!hasText && !formData && !req.body.poll) {
+  if (!chatId || !mongoose.isValidObjectId(chatId)) {
     return res
       .status(400)
-      .json(new ApiResponse(400, null, "Message, Media, or Poll Required !"));
+      .json(new ApiResponse(400, null, "A valid chatId is required"));
+  }
+
+  // Poll Handling
+  let pollData = null;
+  if (req.body.poll) {
+    try {
+      pollData = typeof req.body.poll === "string" ? JSON.parse(req.body.poll) : req.body.poll;
+    } catch {
+      pollData = null;
+    }
+  }
+
+  const hasValidPoll = Boolean(
+    pollData &&
+    typeof pollData === "object" &&
+    typeof pollData.question === "string" &&
+    pollData.question.trim().length > 0 &&
+    Array.isArray(pollData.options) &&
+    pollData.options.length >= 2
+  );
+
+  // Check if it's a Poll, Text, or Media message
+  const hasText = typeof message === "string" && message.trim().length > 0;
+  if (!hasText && !formData && !hasValidPoll) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, null, "Message, Media, or a valid Poll is required!"));
   }
 
   const userId = req.user._id;
   const Chat = await ChatRoom.findById(chatId);
 
   if (!Chat) {
-    // throw new ApiError(404, " Chat Not Found!!!");
     return res.status(404).json(new ApiResponse(404, null, "Chat not found"));
   }
 
-  // Only current chat members may post (a removed member must not be able
-  // to keep writing — or reading — ciphertext for a chat they left)
-  const isMember = (Chat.members || []).some((m) => m.toString() === userId.toString());
+  // Only current chat members may post
+  const isMember = (Chat.members || []).some(
+    (m) => (m?._id || m).toString() === userId.toString()
+  );
   if (!isMember) {
     return res.status(403).json(new ApiResponse(403, null, "You are not a member of this chat"));
   }
 
-  // Blocking Check
+  // Blocking Check for 1-on-1 chats
   if (!Chat.isGroup) {
-    const recipientId = Chat.members.find((member) => member.toString() !== userId.toString());
+    const recipientId = (Chat.members || []).find(
+      (member) => (member?._id || member).toString() !== userId.toString()
+    );
     if (recipientId) {
       const recipient = await User.findById(recipientId);
-      const sender = await User.findById(userId); // Ensure we have latest blockedUsers
+      const sender = await User.findById(userId);
 
       if (recipient && sender) {
-        // ObjectId arrays must be compared by string, not with .includes()
-        // (a distinct ObjectId instance never === another one). (Issue E3)
-        const isBlockedByRecipient = recipient.blockedUsers.some((id) => String(id) === String(userId));
-        const hasBlockedRecipient = sender.blockedUsers.some((id) => String(id) === String(recipientId));
+        const recipientBlocked = recipient.blockedUsers || [];
+        const senderBlocked = sender.blockedUsers || [];
+        const isBlockedByRecipient = recipientBlocked.some((id) => String(id) === String(userId));
+        const hasBlockedRecipient = senderBlocked.some((id) => String(id) === String(recipientId));
         if (isBlockedByRecipient) {
           return res.status(403).json(new ApiResponse(403, null, "You have been blocked by this user."));
         }
@@ -62,30 +88,19 @@ const sendMessage = AsyncHandler(async (req, res) => {
       : `/media/${req.file.filename}`
     : "";
 
-  // Poll Handling
-  let pollData = null;
-  if (req.body.poll) {
-    // Expecting poll to be a JSON string if sent with formData, or object if JSON
-    try {
-      pollData = typeof req.body.poll === 'string' ? JSON.parse(req.body.poll) : req.body.poll;
-    } catch (e) {
-      // console.error("Poll parse error", e);
-    }
-  }
-
   const newMessage = await Message.create({
     Sender: userId,
     chatId: chatId,
     message: message || "",
     media: mediaUrl,
-    poll: pollData,
+    poll: hasValidPoll ? pollData : undefined,
   });
 
   Chat.lastMessage = newMessage._id;
   await Chat.save();
 
   let populatedMessage = await Message.findById(newMessage._id)
-    .populate("Sender", "name avtar")
+    .populate("Sender", "name avtar email")
     .populate({
       path: "chatId",
       populate: {
@@ -96,49 +111,49 @@ const sendMessage = AsyncHandler(async (req, res) => {
 
   populatedMessage = populatedMessage.toObject();
   populatedMessage.chat = populatedMessage.chatId;
-  delete populatedMessage.chatId;
 
   return res
     .status(200)
     .json(
-      new ApiResponse(200, populatedMessage, "Message sent sucessfully ...")
+      new ApiResponse(200, populatedMessage, "Message sent successfully")
     );
 });
 
 const allMessages = AsyncHandler(async (req, res) => {
   const { chatId, limit, before } = req.body;
 
-  if (!chatId) {
-    // throw new ApiError(400, "chatId  is required.");
+  if (!chatId || !mongoose.isValidObjectId(chatId)) {
     return res
-      .status(401)
-      .json(new ApiResponse(401, null, "ChatId is required"));
+      .status(400)
+      .json(new ApiResponse(400, null, "Valid chatId is required"));
   }
 
-  // Membership gate: removed/left members must not be able to pull ciphertext
-  // for chats they no longer belong to (pairs with E2EE, Issue 3.2).
   const chat = await ChatRoom.findById(chatId).select("members");
   if (!chat) {
     return res.status(404).json(new ApiResponse(404, null, "Chat not found"));
   }
-  const isMember = (chat.members || []).some((m) => m.toString() === req.user._id.toString());
+  const isMember = (chat.members || []).some(
+    (m) => (m?._id || m).toString() === req.user._id.toString()
+  );
   if (!isMember) {
     return res.status(403).json(new ApiResponse(403, null, "You are not a member of this chat"));
   }
 
-  // Cursor pagination: return the newest `limit` messages (default 50).
-  // Passing `before` (a message id) returns the page older than that message. (Issue 3.4)
   const pageSize = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
-  const query = { chatId };
+  const query = {
+    chatId,
+    deletedFor: { $ne: req.user._id },
+  };
+
   if (before && mongoose.isValidObjectId(before)) {
     query._id = { $lt: before };
   }
 
-  // Fetch one extra row to know whether an older page exists
   const rows = await Message.find(query)
     .sort({ _id: -1 })
     .limit(pageSize + 1)
     .populate("Sender", "name avtar email")
+    .populate("reactions.user", "name avtar")
     .populate({
       path: "chatId",
       populate: {
@@ -149,43 +164,57 @@ const allMessages = AsyncHandler(async (req, res) => {
 
   const hasMore = rows.length > pageSize;
   const page = hasMore ? rows.slice(0, pageSize) : rows;
-  page.reverse(); // chronological order for the client
+  page.reverse();
+
+  const normalizedPage = page.map((m) => {
+    const obj = m.toObject();
+    obj.chat = obj.chatId;
+    return obj;
+  });
 
   return res
     .status(200)
-    .json(new ApiResponse(200, { messages: page, hasMore }, "Messages fetched!!"));
+    .json(new ApiResponse(200, { messages: normalizedPage, hasMore }, "Messages fetched successfully"));
 });
 
 const deleteMessage = AsyncHandler(async (req, res) => {
   const { messageId, forEveryone } = req.body;
   const userId = req.user._id;
 
-  if (!messageId) {
-    // throw new ApiError(401, "messageId required!!!");
+  if (!messageId || !mongoose.isValidObjectId(messageId)) {
     return res
-      .status(401)
-      .json(new ApiResponse(401, null, "messageId is required"));
+      .status(400)
+      .json(new ApiResponse(400, null, "Valid messageId is required"));
   }
 
   const message = await Message.findById(messageId);
 
   if (!message) {
-    // throw new ApiError(404, "message not available.");
     return res
       .status(404)
-      .json(new ApiResponse(404, null, "message  not available"));
+      .json(new ApiResponse(404, null, "Message not available"));
   }
 
-  const isSender = message.Sender.toString() === req.user._id.toString();
-  // Server clock is authoritative. A 5-minute grace window absorbs small
-  // client/server clock drift so borderline deletes aren't rejected. (Issue E1)
+  const chat = await ChatRoom.findById(message.chatId);
+  if (!chat || !(chat.members || []).some((m) => (m?._id || m).toString() === userId.toString())) {
+    return res.status(403).json(new ApiResponse(403, null, "You are not a member of this chat"));
+  }
+
+  const isSender = message.Sender.toString() === userId.toString();
   const DELETE_GRACE_MS = 5 * 60 * 1000;
   const withinOneHour =
     new Date() - new Date(message.createdAt) < 60 * 60 * 1000 + DELETE_GRACE_MS;
 
-  if (isSender && forEveryone) {
+  if (forEveryone) {
+    if (!isSender) {
+      return res
+        .status(403)
+        .json(
+          new ApiResponse(403, null, "You can only delete your own messages for everyone.")
+        );
+    }
+
     if (!withinOneHour) {
-      // throw new ApiError( 403, "You can only delete messages for everyone within 1 hour.");
       return res
         .status(403)
         .json(
@@ -206,13 +235,12 @@ const deleteMessage = AsyncHandler(async (req, res) => {
 
     return res
       .status(200)
-      .json(new ApiResponse(200, {}, "Message deleted for everyone!!"));
+      .json(new ApiResponse(200, { messageId, isDeleted: true }, "Message deleted for everyone successfully"));
   }
 
   if (!Array.isArray(message.deletedFor)) {
     message.deletedFor = [];
   }
-  // Compare by string: ObjectId .includes(userId) never matches a distinct instance
   if (!message.deletedFor.some((id) => String(id) === String(userId))) {
     message.deletedFor.push(userId);
     await message.save();
@@ -220,7 +248,7 @@ const deleteMessage = AsyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, {}, "Message delete from you only!!! "));
+    .json(new ApiResponse(200, { messageId }, "Message deleted for you only"));
 });
 
 const markAsRead = AsyncHandler(async (req, res) => {
@@ -228,19 +256,24 @@ const markAsRead = AsyncHandler(async (req, res) => {
   const userId = req.user._id;
 
   if (Array.isArray(messageIds) && messageIds.length > 0) {
+    const validIds = messageIds.filter((id) => mongoose.isValidObjectId(id));
+    if (validIds.length === 0) {
+      return res.status(400).json(new ApiResponse(400, null, "No valid message IDs provided"));
+    }
+
     await Message.updateMany(
-      { _id: { $in: messageIds }, readBy: { $ne: userId } },
-      { $addToSet: { readBy: userId } }
+      { _id: { $in: validIds }, readBy: { $ne: userId } },
+      { $addToSet: { readBy: userId }, $set: { status: "read" } }
     );
     return res
       .status(200)
-      .json(new ApiResponse(200, { messageIds, readerId: userId }, "Messages marked as read."));
+      .json(new ApiResponse(200, { messageIds: validIds, readerId: userId }, "Messages marked as read"));
   }
 
-  if (!messageId) {
+  if (!messageId || !mongoose.isValidObjectId(messageId)) {
     return res
       .status(400)
-      .json(new ApiResponse(400, null, "messageId or messageIds is required"));
+      .json(new ApiResponse(400, null, "Valid messageId or messageIds is required"));
   }
 
   const message = await Message.findById(messageId);
@@ -251,19 +284,44 @@ const markAsRead = AsyncHandler(async (req, res) => {
       .json(new ApiResponse(404, null, "Message not found"));
   }
 
-  // Compare by string: ObjectId .includes(userId) never matches a distinct instance
+  if (!Array.isArray(message.readBy)) {
+    message.readBy = [];
+  }
   if (!message.readBy.some((id) => String(id) === String(userId))) {
     message.readBy.push(userId);
+    message.status = "read";
     await message.save();
   }
+
+  let populatedMessage = await Message.findById(messageId)
+    .populate("Sender", "name avtar email")
+    .populate({
+      path: "chatId",
+      populate: {
+        path: "members",
+        select: "name avtar email",
+      },
+    });
+
+  populatedMessage = populatedMessage.toObject();
+  populatedMessage.chat = populatedMessage.chatId;
+
   return res
     .status(200)
-    .json(new ApiResponse(200, message, "Message marked as read."));
+    .json(new ApiResponse(200, populatedMessage, "Message marked as read"));
 });
 
 const reactToMessage = AsyncHandler(async (req, res) => {
   const { messageId, emoji } = req.body;
   const userId = req.user._id;
+
+  if (!messageId || !mongoose.isValidObjectId(messageId)) {
+    return res.status(400).json(new ApiResponse(400, null, "Valid messageId is required"));
+  }
+
+  if (!emoji || typeof emoji !== "string" || emoji.trim().length === 0) {
+    return res.status(400).json(new ApiResponse(400, null, "Valid emoji is required"));
+  }
 
   const message = await Message.findById(messageId);
   if (!message) {
@@ -275,12 +333,16 @@ const reactToMessage = AsyncHandler(async (req, res) => {
   }
 
   const chatDoc = await ChatRoom.findById(message.chatId);
-  if (!chatDoc || !chatDoc.members.some((m) => String(m) === String(userId))) {
+  if (!chatDoc || !(chatDoc.members || []).some((m) => (m?._id || m).toString() === userId.toString())) {
     return res.status(403).json(new ApiResponse(403, null, "You are not a member of this chat"));
   }
 
+  if (!Array.isArray(message.reactions)) {
+    message.reactions = [];
+  }
+
   const existingReactionIndex = message.reactions.findIndex(
-    (r) => r.user.toString() === userId.toString()
+    (r) => r.user && r.user.toString() === userId.toString()
   );
 
   if (existingReactionIndex > -1) {
@@ -298,8 +360,7 @@ const reactToMessage = AsyncHandler(async (req, res) => {
 
   await message.save();
 
-  // Populate reactions user for real-time updates if needed, though simpler just to return message
-  const populatedMessage = await Message.findById(messageId)
+  let populatedMessage = await Message.findById(messageId)
     .populate("Sender", "name avtar email")
     .populate("reactions.user", "name avtar")
     .populate({
@@ -310,6 +371,9 @@ const reactToMessage = AsyncHandler(async (req, res) => {
       },
     });
 
+  populatedMessage = populatedMessage.toObject();
+  populatedMessage.chat = populatedMessage.chatId;
+
   return res.status(200).json(new ApiResponse(200, populatedMessage, "Reaction updated"));
 });
 
@@ -317,8 +381,12 @@ const votePoll = AsyncHandler(async (req, res) => {
   const { messageId, optionIndex } = req.body;
   const userId = req.user._id;
 
+  if (!messageId || !mongoose.isValidObjectId(messageId)) {
+    return res.status(400).json(new ApiResponse(400, null, "Valid messageId is required"));
+  }
+
   const message = await Message.findById(messageId);
-  if (!message || !message.poll) {
+  if (!message || !message.poll || !Array.isArray(message.poll.options)) {
     return res.status(404).json(new ApiResponse(404, null, "Poll not found"));
   }
 
@@ -331,39 +399,33 @@ const votePoll = AsyncHandler(async (req, res) => {
   }
 
   const chatDoc = await ChatRoom.findById(message.chatId);
-  if (!chatDoc || !chatDoc.members.some((m) => String(m) === String(userId))) {
+  if (!chatDoc || !(chatDoc.members || []).some((m) => (m?._id || m).toString() === userId.toString())) {
     return res.status(403).json(new ApiResponse(403, null, "You are not a member of this chat"));
   }
 
-  // Remove user vote from all options (Single choice poll for now, or toggle)
-  // Let's implement toggle: If already voted for this option, remove. If passed different option, switch.
-
-  // Remove the user's existing vote from ALL options first.
-  // NOTE: votes hold Mongoose ObjectId instances, so indexOf (===) never
-  // matches a distinct ObjectId — compare by string instead. (Issue 1.3)
   const hasVotedInOption = (opt) =>
     (opt.votes || []).some((v) => String(v?._id ?? v) === String(userId));
 
   const alreadyVotedHere = hasVotedInOption(message.poll.options[optionIndex] || {});
 
   message.poll.options.forEach((opt) => {
-    const index = (opt.votes || []).findIndex((v) => String(v?._id ?? v) === String(userId));
+    if (!Array.isArray(opt.votes)) opt.votes = [];
+    const index = opt.votes.findIndex((v) => String(v?._id ?? v) === String(userId));
     if (index > -1) {
       opt.votes.splice(index, 1);
     }
   });
 
-  // Toggle: clicking the option you already voted for removes your vote;
-  // clicking a different option switches your vote to it.
-  if (!alreadyVotedHere && optionIndex >= 0 && optionIndex < message.poll.options.length) {
+  if (!alreadyVotedHere) {
     message.poll.options[optionIndex].votes.push(userId);
   }
 
   await message.save();
 
-  const populatedMessage = await Message.findById(messageId)
+  let populatedMessage = await Message.findById(messageId)
     .populate("Sender", "name avtar email")
-    .populate("poll.options.votes", "name avtar") // Populate voters? Maybe for list.
+    .populate("reactions.user", "name avtar")
+    .populate("poll.options.votes", "name avtar")
     .populate({
       path: "chatId",
       populate: {
@@ -372,6 +434,9 @@ const votePoll = AsyncHandler(async (req, res) => {
       },
     });
 
+  populatedMessage = populatedMessage.toObject();
+  populatedMessage.chat = populatedMessage.chatId;
+
   return res.status(200).json(new ApiResponse(200, populatedMessage, "Vote registered"));
 });
 
@@ -379,8 +444,12 @@ const editMessage = AsyncHandler(async (req, res) => {
   const { messageId, message: newText } = req.body;
   const userId = req.user._id;
 
-  if (!messageId || typeof newText !== "string") {
-    return res.status(400).json(new ApiResponse(400, null, "messageId and new message text are required"));
+  if (!messageId || !mongoose.isValidObjectId(messageId)) {
+    return res.status(400).json(new ApiResponse(400, null, "Valid messageId is required"));
+  }
+
+  if (typeof newText !== "string" || newText.trim().length === 0) {
+    return res.status(400).json(new ApiResponse(400, null, "Valid new message text is required"));
   }
 
   const existingMessage = await Message.findById(messageId);
@@ -396,6 +465,13 @@ const editMessage = AsyncHandler(async (req, res) => {
   // Cannot edit deleted messages
   if (existingMessage.isDeleted) {
     return res.status(400).json(new ApiResponse(400, null, "Cannot edit a deleted message"));
+  }
+
+  const EDIT_GRACE_MS = 5 * 60 * 1000;
+  const withinOneHour =
+    new Date() - new Date(existingMessage.createdAt) < 60 * 60 * 1000 + EDIT_GRACE_MS;
+  if (!withinOneHour) {
+    return res.status(403).json(new ApiResponse(403, null, "Messages can only be edited within 1 hour."));
   }
 
   existingMessage.message = newText;
@@ -421,4 +497,3 @@ const editMessage = AsyncHandler(async (req, res) => {
 });
 
 export { sendMessage, allMessages, deleteMessage, markAsRead, reactToMessage, votePoll, editMessage };
-

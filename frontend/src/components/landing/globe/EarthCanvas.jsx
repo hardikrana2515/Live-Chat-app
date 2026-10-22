@@ -280,7 +280,7 @@ export default function EarthCanvas({
                   triPositions.push(v0.x, v0.y, v0.z, v1.x, v1.y, v1.z, v2.x, v2.y, v2.z);
                 }
               });
-            } catch (triErr) {
+            } catch {
               // Silently ignore rare non-triangulable small degenerate ring
             }
           });

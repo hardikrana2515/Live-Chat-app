@@ -158,6 +158,20 @@ const Sidebar = () => {
               <span className="text-[11px] text-[var(--c-text-3)] truncate">@{user?.userName || 'user'}</span>
             </div>
           </button>
+
+          {/* Compact Brand Symbol */}
+          <a
+            href="/"
+            className="shrink-0 p-1 rounded-lg hover:bg-[var(--c-hover)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2858E8]"
+            title="Talkyy Home"
+            aria-label="Talkyy Home"
+          >
+            <img
+              src="/brand/talkyy-symbol-transparent.png"
+              alt="Talkyy"
+              className="w-7 h-7 object-contain"
+            />
+          </a>
         </div>
 
         {/* Search */}
@@ -319,6 +333,19 @@ const Sidebar = () => {
         <label htmlFor="my-drawer" className="drawer-overlay"></label>
         <div className="menu p-4 w-72 min-h-full bg-[var(--c-panel)] border-r border-[var(--c-line)] text-[var(--c-text)] flex flex-col justify-between">
           <div>
+            <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-[var(--c-line-50)]">
+              <a href="/" className="inline-block" title="Talkyy Home" aria-label="Talkyy Home">
+                <img
+                  src="/brand/talkyy-horizontal.png"
+                  alt="Talkyy"
+                  className="h-7 w-auto max-w-[130px] object-contain"
+                />
+              </a>
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[var(--c-primary-soft)] text-[var(--c-link)]">
+                Chat
+              </span>
+            </div>
+
             <div className="pb-4 mb-3 border-b border-[var(--c-line-50)]">
               <Profile />
             </div>

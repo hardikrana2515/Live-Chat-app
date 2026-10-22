@@ -1,11 +1,11 @@
-import { useContext, useState, useEffect } from 'react';
+import { useContext, useState } from 'react';
 import messageContext from '../contexts/MessageContext/messageContext';
 import chatContext from '../contexts/ChatContext/chatcontext';
 import { IoCloseSharp } from "react-icons/io5";
 import { FiTrash2 } from "react-icons/fi";
 import { toast } from 'react-toastify';
 const DMsg = () => {
-    const { AllMessages, Allmsg, setAllmsg, msg, DeleteMsg, Del, setDel, setEditingMsg, delForEveryone, setDelForEveryone } = useContext(messageContext);
+    const { AllMessages, Allmsg, msg, DeleteMsg, Del, setDel, setEditingMsg, delForEveryone, setDelForEveryone } = useContext(messageContext);
     const { user, selectedchat } = useContext(chatContext);
 
     const [forevryone, setForevryone] = useState(delForEveryone)

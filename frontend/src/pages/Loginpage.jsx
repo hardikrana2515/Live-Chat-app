@@ -1,4 +1,5 @@
 import React, { useContext } from 'react';
+import { Link } from 'react-router-dom';
 import LoginForm from '../components/LoginForm';
 import SignUp from '../components/SignUp';
 import userContext from '../contexts/UserContext/userContext';
@@ -25,7 +26,7 @@ const Login = () => {
           <div className="relative mb-3">
             <div className="w-16 h-16 rounded-2xl bg-[var(--c-panel)] border border-[var(--c-line)] p-2.5 flex items-center justify-center shadow-xl ">
               <img
-                src="/Logo1.png"
+                src="/brand/talkyy-symbol-transparent.png"
                 alt="Talkyy"
                 className="w-full h-full object-contain filter drop-shadow"
               />

@@ -1,9 +1,11 @@
-import multer from "multer"
-import path from "path"
-import fs from "fs"
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 
-const imageDir = path.join(path.resolve(), "public", "Image");
-const mediaDir = path.join(path.resolve(), "public", "media");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const imageDir = path.join(__dirname, "..", "public", "Image");
+const mediaDir = path.join(__dirname, "..", "public", "media");
 
 if (!fs.existsSync(imageDir)) fs.mkdirSync(imageDir, { recursive: true });
 if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
@@ -17,14 +19,13 @@ const storage = multer.diskStorage({
         }
     },
     filename: function (req, file, cb) {
-        // Preserve original extensions (e.g. image.png.enc) so frontend can detect type
         cb(null, Date.now() + "-" + file.originalname.replace(/\s+/g, '_'));
     }
-})
+});
 
 const upload = multer({
     storage: storage,
     limits: { fileSize: 20 * 1024 * 1024 }
-})
+});
 
-export default upload
+export default upload;

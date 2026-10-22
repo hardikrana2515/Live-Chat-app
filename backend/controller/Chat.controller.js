@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Message from "../models/Message.model.js";
 import { ApiError } from "../utils/Apierror.js";
 import { AsyncHandler } from "../utils/asynchandler.js";
@@ -29,11 +30,16 @@ const emitGroupUpdate = (req, chat, action, { extraUserIds = [], payload = {} } 
 const AccessChat = AsyncHandler(async (req, res) => {
   const { UserId } = req.body;
 
-  if (!UserId) {
-    // throw new ApiError(403, "UserId don't sent by User!!");
-     return res.status(403)
-              .json(new ApiResponse(403,null,"UserId don't sent by User!!"
-              ))
+  if (!UserId || !mongoose.isValidObjectId(UserId)) {
+     return res.status(400)
+              .json(new ApiResponse(400, null, "Valid UserId is required"
+              ));
+  }
+
+  if (req.user._id.toString() === UserId.toString()) {
+     return res.status(400)
+              .json(new ApiResponse(400, null, "Cannot create a chat with yourself"
+              ));
   }
 
   let isChat = await ChatRoom.find({
@@ -125,11 +131,10 @@ const CreateGroup = AsyncHandler(async (req, res) => {
 const RenameGroup = AsyncHandler(async (req, res) => {
   const { chatId, chatname } = req.body;
 
-  if (!chatId || !chatname || chatname.trim().length === 0) {
-    // throw new ApiError(400, "Chat ID and new group name are required.");
+  if (!chatId || !mongoose.isValidObjectId(chatId) || !chatname || chatname.trim().length === 0) {
     return res.status(400)
-              .json(new ApiResponse(400,null,"Chat ID and new group name are required."
-              ))
+              .json(new ApiResponse(400, null, "Valid Chat ID and group name are required."
+              ));
   }
 
   const chat = await ChatRoom.findById(chatId);
@@ -180,9 +185,9 @@ const RenameGroup = AsyncHandler(async (req, res) => {
 const RemovefromGroup = AsyncHandler(async (req, res) => {
   const { chatId, UserId } = req.body;
 
-  if (!chatId || !UserId) {
+  if (!chatId || !mongoose.isValidObjectId(chatId) || !UserId || !mongoose.isValidObjectId(UserId)) {
     return res.status(400)
-              .json(new ApiResponse(400, null, "chatId and userId are required."));
+              .json(new ApiResponse(400, null, "Valid chatId and userId are required."));
   }
 
   const Chat = await ChatRoom.findById(chatId);
@@ -240,11 +245,10 @@ const RemovefromGroup = AsyncHandler(async (req, res) => {
 const addtoGroup = AsyncHandler(async (req, res) => {
   const { chatId, UserIdlist } = req.body;
 
-  if (!chatId || !UserIdlist) {
-    // throw new ApiError(400, "chatId and userId are required.");
+  if (!chatId || !mongoose.isValidObjectId(chatId) || !UserIdlist) {
      return res.status(400)
-              .json(new ApiResponse(400,null,"chatId and userId are required."
-              ))
+              .json(new ApiResponse(400, null, "Valid chatId and userId are required."
+              ));
   }
 
   const Chat = await ChatRoom.findById(chatId);
@@ -304,11 +308,10 @@ const addtoGroup = AsyncHandler(async (req, res) => {
 const makeAdmin = AsyncHandler(async (req, res) => {
   const { chatId, UserId } = req.body;
 
-  if (!chatId || !UserId) {
-    // throw new ApiError(400, "chatId and userId are required.");
+  if (!chatId || !mongoose.isValidObjectId(chatId) || !UserId || !mongoose.isValidObjectId(UserId)) {
      return res.status(400)
-              .json(new ApiResponse(403,null,"chatId and userId are required."
-              ))
+              .json(new ApiResponse(400, null, "Valid chatId and userId are required."
+              ));
   }
 
   const Chat = await ChatRoom.findById(chatId);
@@ -344,10 +347,9 @@ const makeAdmin = AsyncHandler(async (req, res) => {
   );
 
   if (isAlreadyAdmin) {
-    // throw new ApiError(409, "User is already an admin.");
       return res.status(409)
-              .json(new ApiResponse(404,null,"User is already an admin."
-              ))
+              .json(new ApiResponse(409, null, "User is already an admin."
+              ));
   }
   Chat.admins.push(UserId);
   await Chat.save();
@@ -369,11 +371,10 @@ const makeAdmin = AsyncHandler(async (req, res) => {
 const RemoveAdmin = AsyncHandler(async (req, res) => {
   const { chatId, UserId } = req.body;
 
-  if (!chatId || !UserId) {
-    // throw new ApiError(400, "chatId and userId are required.");
-     return res.status(403)
-              .json(new ApiResponse(403,null,"chatId and userId are required."
-              ))
+  if (!chatId || !mongoose.isValidObjectId(chatId) || !UserId || !mongoose.isValidObjectId(UserId)) {
+     return res.status(400)
+              .json(new ApiResponse(400, null, "Valid chatId and userId are required."
+              ));
   }
 
   const Chat = await ChatRoom.findById(chatId);
@@ -449,9 +450,9 @@ const RemoveAdmin = AsyncHandler(async (req, res) => {
 const LeaveGroup = AsyncHandler(async (req, res) => {
   const { chatId } = req.body;
 
-  if (!chatId) {
+  if (!chatId || !mongoose.isValidObjectId(chatId)) {
     return res.status(400)
-              .json(new ApiResponse(400, null, "chatId is required."));
+              .json(new ApiResponse(400, null, "Valid chatId is required."));
   }
 
   const Chat = await ChatRoom.findById(chatId);
@@ -495,9 +496,9 @@ const LeaveGroup = AsyncHandler(async (req, res) => {
 const DeleteGroup = AsyncHandler(async (req, res) => {
   const { chatId } = req.body;
 
-  if (!chatId) {
-    return res.status(401)
-              .json(new ApiResponse(401, null, "chatId is required."));
+  if (!chatId || !mongoose.isValidObjectId(chatId)) {
+    return res.status(400)
+              .json(new ApiResponse(400, null, "Valid chatId is required."));
   }
 
   const Chat = await ChatRoom.findById(chatId);
@@ -544,6 +545,10 @@ const UploadGroupIcon = AsyncHandler(async (req, res) => {
   }
 
   const { chatId } = req.body;
+  if (!chatId || !mongoose.isValidObjectId(chatId)) {
+    return res.status(400)
+              .json(new ApiResponse(400, null, "Valid chatId is required!"));
+  }
   const chat = await ChatRoom.findById(chatId);
 
   if (!chat) {
@@ -581,8 +586,8 @@ const UploadGroupIcon = AsyncHandler(async (req, res) => {
 const UpdateGroupKeys = AsyncHandler(async (req, res) => {
   const { chatId, groupKeys, merge } = req.body;
 
-  if (!chatId) {
-    return res.status(400).json(new ApiResponse(400, null, "chatId is required"));
+  if (!chatId || !mongoose.isValidObjectId(chatId)) {
+    return res.status(400).json(new ApiResponse(400, null, "Valid chatId is required"));
   }
 
   const chat = await ChatRoom.findById(chatId);

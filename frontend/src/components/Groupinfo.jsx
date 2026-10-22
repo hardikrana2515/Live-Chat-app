@@ -4,7 +4,7 @@ import { LuCrown } from "react-icons/lu";
 import chatContext from '../contexts/ChatContext/chatcontext';
 
 const Groupinfo = () => {
-    const { chatmodal, setChatmodal, selectedchat, user } = useContext(chatContext);
+    const { setChatmodal, selectedchat, user } = useContext(chatContext);
 
     const getOtherUser = (loggedInUser, members) => {
         return members.find((m) => m._id !== loggedInUser._id);

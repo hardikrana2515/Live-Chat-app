@@ -113,7 +113,7 @@ const RemotePeerVideoTile = ({ peerObj, callType }) => {
 };
 
 const GroupCall = ({ socket, user, chat, callType = 'video', onEndCall }) => {
-    const [localStream, setLocalStream] = useState(null);
+    const [, setLocalStream] = useState(null);
     const [muted, setMuted] = useState(false);
     const [videoEnabled, setVideoEnabled] = useState(callType === 'video');
     const [peers, setPeers] = useState([]); // array of { peerID, peer, user, stream, isMuted, isCameraOff }
@@ -293,7 +293,7 @@ const GroupCall = ({ socket, user, chat, callType = 'video', onEndCall }) => {
             console.log("[GroupCall] User left group call:", socketId);
             const peerObj = peersRef.current.find(p => p.peerID === socketId);
             if (peerObj) {
-                try { peerObj.peer.destroy(); } catch (e) { /* ignore */ }
+                try { peerObj.peer.destroy(); } catch { /* ignore */ }
             }
             peersRef.current = peersRef.current.filter(p => p.peerID !== socketId);
             setPeers(prev => prev.filter(p => p.peerID !== socketId));
@@ -330,7 +330,7 @@ const GroupCall = ({ socket, user, chat, callType = 'video', onEndCall }) => {
     const handleLeave = () => {
         // Destroy all peer connections
         peersRef.current.forEach(({ peer }) => {
-            try { peer.destroy(); } catch (e) { /* ignore */ }
+            try { peer.destroy(); } catch { /* ignore */ }
         });
         peersRef.current = [];
 

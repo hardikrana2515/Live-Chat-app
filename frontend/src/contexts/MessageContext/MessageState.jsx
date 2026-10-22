@@ -1,5 +1,4 @@
-
-import messageContext from '../MessageContext/messageContext.js'
+import MessageContext from '../MessageContext/messageContext.js'
 import { useState, useEffect, useContext } from 'react'
 import API from '../Api.js'
 import { toast } from 'react-toastify'
@@ -256,14 +255,14 @@ const MessageState = ({ children }) => {
     };
 
     return (
-        <messageContext.Provider value={{
+        <MessageContext.Provider value={{
             Send, msg, setMsg, AllMessages, setAllmsg, Allmsg,
             DeleteMsg, Del, setDel, ReadBy, ENDPOINT, ReactToMsg, VotePoll, EditMsg,
             editingMsg, setEditingMsg, delForEveryone, setDelForEveryone,
             hasMore, LoadOlderMessages, loadingOlder
         }}>
             {children}
-        </messageContext.Provider>
+        </MessageContext.Provider>
     )
 }
 

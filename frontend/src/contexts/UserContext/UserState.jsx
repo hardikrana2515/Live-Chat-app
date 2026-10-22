@@ -1,4 +1,4 @@
-import userContext from "./userContext";
+import UserContext from "./userContext";
 import API from "../Api.js"
 import { useState, useEffect } from 'react'
 import { useNavigate } from "react-router-dom"
@@ -10,7 +10,7 @@ const UserState = ({ children }) => {
 
     const [login, setLogin] = useState(true);
     const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false)
+    const [, setLoading] = useState(false)
     const [searchUser, setSearchUser] = useState([])
     // Single source of truth for the logged-in user (Issue 3.1).
     // Initialized lazily from localStorage so it is available before any effect runs.
@@ -170,7 +170,7 @@ const UserState = ({ children }) => {
             setUser({});
             setLogin(true);
             navigate("/login");
-        } catch (e) {
+        } catch {
             localStorage.removeItem("token");
             localStorage.removeItem("userInfo");
             setUser({});
@@ -196,7 +196,7 @@ const UserState = ({ children }) => {
 
     const updatePassword = async (oldpassword, newpassword) => {
         try {
-            const res = await API.put("user/changePassword", { oldpassword, newpassword }, {
+            await API.put("user/changePassword", { oldpassword, newpassword }, {
                 headers: {
                     "Content-Type": "application/json"
                 },
@@ -267,14 +267,14 @@ const UserState = ({ children }) => {
     }
 
     return (
-        <userContext.Provider value={{
+        <UserContext.Provider value={{
             login, setLogin, signup, LoginFunc, setError, error,
             Alluser, setLoading, searchUser, setSearchUser, GetUser, refreshUser,
             user, logout, setCard, card, UploadImg, updatePassword,
             setpass, pass, sendRequest, acceptRequest, getFriendRequests, friendRequests
         }}>
             {children}
-        </userContext.Provider>
+        </UserContext.Provider>
     )
 }
 

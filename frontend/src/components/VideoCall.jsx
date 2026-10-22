@@ -111,7 +111,7 @@ const VideoCall = ({ socket, user, chat, EndCall, signalData, isIncoming, callTy
         return () => {
             isMounted = false;
             if (connectionRef.current) {
-                try { connectionRef.current.destroy(); } catch (e) { /* ignore */ }
+                try { connectionRef.current.destroy(); } catch { /* ignore */ }
                 connectionRef.current = null;
             }
             if (streamRef.current) {

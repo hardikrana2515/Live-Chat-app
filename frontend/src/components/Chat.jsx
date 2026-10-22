@@ -15,7 +15,7 @@ export const isChatUnread = (c, currentUserId) => {
     const senderId = (lastMsg.Sender?._id || lastMsg.Sender)?.toString();
     const myId = currentUserId?.toString();
     if (!senderId || !myId) return false;
-    if (senderId === myId) return false; // Self sent messages are not unread
+    if (senderId === myId) return false;
 
     const readBy = lastMsg.readBy || [];
     const isRead = readBy.some(id => (id?._id || id)?.toString() === myId);
@@ -86,113 +86,109 @@ const Chat = ({ filter = 'all' }) => {
             }
         };
 
-        // Group lifecycle events (created/renamed/members added/removed/roles/deleted)
         const handleGroupUpdated = ({ chatId, action, chat: updatedGroup, actorId, addedUserIds, removedUserId } = {}) => {
             const myId = user?._id;
             const isMe = (id) => Boolean(id) && String(id) === String(myId);
 
-            // E2EE bookkeeping (Issue 3.2): membership/keys may have changed,
-            // so drop the cached conversation key (it will be re-derived from
-            // the fresh chat doc) or forget deleted chats entirely.
             if (action === 'deleted') {
-                dropChat(chatId);
+        dropChat(chatId);
+    } else {
+        if (['member removed', 'member left', 'keys changed'].includes(action)) {
+            clearChatKey(chatId);
+        }
+        if (updatedGroup) registerChat(updatedGroup);
+    }
+
+    // Always refresh the sidebar list from the server
+    Allchat();
+
+    // Keep the currently open chat in sync (or close it if I no longer belong)
+    if (selectedchat?._id === chatId) {
+        if (action === 'deleted' || action === 'member removed') {
+            if (action === 'member removed' && !isMe(removedUserId)) {
+                // Someone else was removed — just refresh member list
+                if (updatedGroup) setSelectedchat(prev => (prev?._id === chatId ? { ...prev, ...updatedGroup } : prev));
             } else {
-                if (['member removed', 'member left', 'keys changed'].includes(action)) {
-                    clearChatKey(chatId);
-                }
-                if (updatedGroup) registerChat(updatedGroup);
+                setSelectedchat(null);
+                if (action === 'member removed') toast.info('You were removed from the group');
             }
+        } else if (updatedGroup) {
+            setSelectedchat(prev => (prev?._id === chatId ? { ...prev, ...updatedGroup } : prev));
+        }
+    } else if (action === 'member removed' && isMe(removedUserId)) {
+        toast.info('You were removed from the group');
+    }
 
-            // Always refresh the sidebar list from the server
-            Allchat();
+    // Light notifications for changes involving me
+    if (action === 'created' && !isMe(actorId)) {
+        toast.info(`You were added to group "${updatedGroup?.chatname || 'New Group'}"`);
+    }
+    if (action === 'members added' && Array.isArray(addedUserIds) && addedUserIds.some(isMe) && !isMe(actorId)) {
+        toast.info(`You were added to "${updatedGroup?.chatname || 'a group'}"`);
+    }
+    if (action === 'deleted' && !isMe(actorId)) {
+        toast.info(`Group "${updatedGroup?.chatname || 'conversation'}" was deleted`);
+    }
+};
 
-            // Keep the currently open chat in sync (or close it if I no longer belong)
-            if (selectedchat?._id === chatId) {
-                if (action === 'deleted' || action === 'member removed') {
-                    if (action === 'member removed' && !isMe(removedUserId)) {
-                        // Someone else was removed — just refresh member list
-                        if (updatedGroup) setSelectedchat(prev => (prev?._id === chatId ? { ...prev, ...updatedGroup } : prev));
-                    } else {
-                        setSelectedchat(null);
-                        if (action === 'member removed') toast.info('You were removed from the group');
-                    }
-                } else if (updatedGroup) {
-                    setSelectedchat(prev => (prev?._id === chatId ? { ...prev, ...updatedGroup } : prev));
-                }
-            } else if (action === 'member removed' && isMe(removedUserId)) {
-                toast.info('You were removed from the group');
-            }
-
-            // Light notifications for changes involving me
-            if (action === 'created' && !isMe(actorId)) {
-                toast.info(`You were added to group "${updatedGroup?.chatname || 'New Group'}"`);
-            }
-            if (action === 'members added' && Array.isArray(addedUserIds) && addedUserIds.some(isMe) && !isMe(actorId)) {
-                toast.info(`You were added to "${updatedGroup?.chatname || 'a group'}"`);
-            }
-            if (action === 'deleted' && !isMe(actorId)) {
-                toast.info(`Group "${updatedGroup?.chatname || 'conversation'}" was deleted`);
-            }
-        };
-
-        const handleMessagesRead = ({ messageIds, readerId, chatId }) => {
-            if (setChat) {
-                setChat(prevChats => {
-                    if (!prevChats) return prevChats;
-                    return prevChats.map(c => {
-                        if (c._id === chatId && c.lastMessage && (!messageIds || messageIds.includes(c.lastMessage._id))) {
-                            const existing = c.lastMessage.readBy || [];
-                            if (!existing.some(id => String(id?._id ?? id) === String(readerId))) {
-                                return {
-                                    ...c,
-                                    lastMessage: {
-                                        ...c.lastMessage,
-                                        readBy: [...existing, readerId]
-                                    }
-                                };
+const handleMessagesRead = ({ messageIds, readerId, chatId }) => {
+    if (setChat) {
+        setChat(prevChats => {
+            if (!prevChats) return prevChats;
+            return prevChats.map(c => {
+                if (c._id === chatId && c.lastMessage && (!messageIds || messageIds.includes(c.lastMessage._id))) {
+                    const existing = c.lastMessage.readBy || [];
+                    if (!existing.some(id => String(id?._id ?? id) === String(readerId))) {
+                        return {
+                            ...c,
+                            lastMessage: {
+                                ...c.lastMessage,
+                                readBy: [...existing, readerId]
                             }
-                        }
-                        return c;
-                    });
-                });
-            }
-        };
+                        };
+                    }
+                }
+                return c;
+            });
+        });
+    }
+};
 
-        const handleGroupKeyRequested = async ({ chatId, userId: reqUid }) => {
-            if (!chatId || String(reqUid) === String(user?._id)) return;
-            const targetChat = (chat || []).find(c => c._id === chatId) || (selectedchat?._id === chatId ? selectedchat : null);
-            if (targetChat && healGroupKeys) {
-                await healGroupKeys(targetChat, reqUid);
-            }
-        };
+const handleGroupKeyRequested = async ({ chatId, userId: reqUid }) => {
+    if (!chatId || String(reqUid) === String(user?._id)) return;
+    const targetChat = (chat || []).find(c => c._id === chatId) || (selectedchat?._id === chatId ? selectedchat : null);
+    if (targetChat && healGroupKeys) {
+        await healGroupKeys(targetChat, reqUid);
+    }
+};
 
-        const handleLocalKeyRequest = (e) => {
-            const { chatId, userId } = e.detail || {};
-            if (chatId && socket?.current) {
-                socket.current.emit("request group key", { chatId, userId: userId || user?._id });
-            }
-        };
-        window.addEventListener('talkyy:request-group-key', handleLocalKeyRequest);
+const handleLocalKeyRequest = (e) => {
+    const { chatId, userId } = e.detail || {};
+    if (chatId && socket?.current) {
+        socket.current.emit("request group key", { chatId, userId: userId || user?._id });
+    }
+};
+window.addEventListener('talkyy:request-group-key', handleLocalKeyRequest);
 
-        socket.current.on("message received", handleNewMessage);
-        socket.current.on("message edited", handleMessageEdited);
-        socket.current.on("message deleted", handleMessageDeleted);
-        socket.current.on("group updated", handleGroupUpdated);
-        socket.current.on("messages read", handleMessagesRead);
-        socket.current.on("group key requested", handleGroupKeyRequested);
+socket.current.on("message received", handleNewMessage);
+socket.current.on("message edited", handleMessageEdited);
+socket.current.on("message deleted", handleMessageDeleted);
+socket.current.on("group updated", handleGroupUpdated);
+socket.current.on("messages read", handleMessagesRead);
+socket.current.on("group key requested", handleGroupKeyRequested);
 
-        return () => {
-            window.removeEventListener('talkyy:request-group-key', handleLocalKeyRequest);
-            if (socket.current) {
-                socket.current.off("message received", handleNewMessage);
-                socket.current.off("message edited", handleMessageEdited);
-                socket.current.off("message deleted", handleMessageDeleted);
-                socket.current.off("group updated", handleGroupUpdated);
-                socket.current.off("messages read", handleMessagesRead);
-                socket.current.off("group key requested", handleGroupKeyRequested);
-            }
-        };
-    }, [socket, isConnected, setChat, Allchat, setSelectedchat, selectedchat, user, healGroupKeys, chat]);
+return () => {
+    window.removeEventListener('talkyy:request-group-key', handleLocalKeyRequest);
+    if (socket.current) {
+        socket.current.off("message received", handleNewMessage);
+        socket.current.off("message edited", handleMessageEdited);
+        socket.current.off("message deleted", handleMessageDeleted);
+        socket.current.off("group updated", handleGroupUpdated);
+        socket.current.off("messages read", handleMessagesRead);
+        socket.current.off("group key requested", handleGroupKeyRequested);
+    }
+};
+}, [socket, isConnected, setChat, Allchat, setSelectedchat, selectedchat, user, healGroupKeys, chat]);
 
 
     const getOtherUser = (loggedInUser, members) => {
@@ -413,8 +409,7 @@ const Chat = ({ filter = 'all' }) => {
             )}
         </div>
     );
-};
-
+}
 
 
 

@@ -129,7 +129,7 @@ export const showDesktopNotification = (title, options = {}) => {
 
         // Auto close after 5 seconds
         setTimeout(() => {
-            try { notif.close(); } catch {}
+            try { notif.close(); } catch { /* ignore */ }
         }, 5000);
     } catch (e) {
         console.warn("Failed to display desktop notification:", e);

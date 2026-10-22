@@ -22,7 +22,7 @@ const Chatpage = () => {
 
   const { card, pass } = useContext(userContext)
   const { groupchat, chatmodal, settingmodal, yesmodal, selectedchat, user, chat, setChat } = useContext(chatContext)
-  const { Del, setDel, Send } = useContext(messageContext);
+  const { Del, Send } = useContext(messageContext);
   const { socket, isConnected } = useContext(SocketContext);
 
   // ---- Call state lives here (always mounted) so incoming calls are received

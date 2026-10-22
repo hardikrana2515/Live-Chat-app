@@ -1,5 +1,5 @@
 import { useContext, useState, useEffect } from "react"
-import chatContext from "./chatcontext.js"
+import ChatContext from "./chatcontext.js"
 import userContext from "../UserContext/userContext.js"
 import { toast } from 'react-toastify'
 import API from "../Api.js"
@@ -15,7 +15,7 @@ const ChatState = ({ children }) => {
   const { user, setUser } = useContext(userContext)
   const [chat, setChat] = useState([])
   const [selectedchat, setSelectedchat] = useState()
-  const [chatLoading, setChatLoading] = useState(false)
+  const [, setChatLoading] = useState(false)
   const [groupchat, setGroupchat] = useState(false)
   const [group, setGroup] = useState({})
   const [GsearchUser, setGSearchUser] = useState([])
@@ -539,7 +539,7 @@ const ChatState = ({ children }) => {
   };
 
   return (
-    <chatContext.Provider value={{
+    <ChatContext.Provider value={{
       user, setUser, MakeChat, setChat, chat, Allchat,
       selectedchat, setSelectedchat, CreateGroup,
       groupchat, setGroupchat, group, setGroup, GroupUsersearch,
@@ -550,7 +550,7 @@ const ChatState = ({ children }) => {
       isAuthReady, healGroupKeys, putGroupKeys
     }}>
       {children}
-    </chatContext.Provider>
+    </ChatContext.Provider>
   )
 }
 

@@ -13,15 +13,11 @@ const Auth = AsyncHandler(async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(auth_token, process.env.JWT_SECRET);
-    // console.log(decoded);
     const user = await User.findById(decoded._id);
-    // console.log("Auth Middleware - Found User:", user ? user._id : "null");
-
     if (!user) {
       throw new ApiError(400, "User not valid for this route");
     }
     req.user = user;
-    // console.log("Auth Middleware - Set req.user:", req.user._id);
     next();
   } catch {
     throw new ApiError(401, "Invalid or expired token");

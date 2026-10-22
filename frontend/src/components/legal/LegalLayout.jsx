@@ -38,13 +38,10 @@ const LegalLayout = ({
           {/* Brand */}
           <Link
             to="/"
-            className="flex items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2858E8]"
+            className="flex items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2858E8]"
             aria-label="Talkyy Home"
           >
-            <img src="/Logo1.png" alt="" className="h-8 w-8 object-contain" />
-            <span className="font-display text-xl font-bold tracking-tight text-[#191B20]">
-              Talkyy
-            </span>
+            <img src="/brand/talkyy-horizontal.png" alt="Talkyy" className="h-8 w-auto max-w-[140px] object-contain" />
           </Link>
 
           {/* Navigation Links */}

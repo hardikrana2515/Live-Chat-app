@@ -6,6 +6,7 @@ import GroupMessagingSection from './GroupMessagingSection'
 import VoiceVideoSection from './VoiceVideoSection'
 import PrivacySection from './PrivacySection'
 import FAQSection from './FAQSection'
+import AboutTalkyySection from './AboutTalkyySection'
 import FinalCTA from './FinalCTA'
 import LandingFooter from './LandingFooter'
 import useScrollSynchronizedPanels from './useScrollSynchronizedPanels'
@@ -24,6 +25,7 @@ const LandingPage = () => {
         <VoiceVideoSection />
         <PrivacySection />
         <FAQSection />
+        <AboutTalkyySection />
         <FinalCTA />
       </main>
       <LandingFooter />

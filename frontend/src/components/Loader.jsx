@@ -5,19 +5,19 @@ const Loader = () => {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[var(--c-canvas)] to-[var(--c-panel)] text-[var(--c-text)] p-4">
       {/* Logo */}
       <img
-        src="/Logo1.png"
-        alt="Talkky Logo"
-        className="w-24 h-24 animate-bounce mb-6 drop-shadow-xl"
+        src="/brand/talkyy-symbol-transparent.png"
+        alt="Talkyy Logo"
+        className="w-20 h-20 animate-pulse mb-5 drop-shadow-lg object-contain"
       />
 
       {/* Brand Title */}
-      <h1 className="text-3xl sm:text-4xl font-bold tracking-wide mb-2 ">
-        Talkky
+      <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-2">
+        Talkyy
       </h1>
 
       {/* Tagline */}
-      <p className="text-sm sm:text-base tracking-widest text-[var(--c-text)] font-light">
-        Connecting Conversations...
+      <p className="text-sm sm:text-base tracking-wide text-[var(--c-text-2)] font-normal">
+        A calmer space for real conversations.
       </p>
 
       {/* Progress Bar */}

@@ -11,7 +11,6 @@ import {
 import { LuCrown, LuUsers, LuSlidersHorizontal } from 'react-icons/lu';
 import { FiShield, FiMaximize2, FiSearch, FiCheck } from 'react-icons/fi';
 import { MdHowToVote } from 'react-icons/md';
-import { playSendSound } from '../../utils/SoundUtils';
 
 // Fictional group members from Phase 4 cast
 const GROUP_MEMBERS = [

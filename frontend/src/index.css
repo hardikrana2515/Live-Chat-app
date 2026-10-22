@@ -1083,6 +1083,7 @@ html:has(.landing-root) { scroll-behavior: smooth; }
 .landing-panel--z-calls { z-index: 35; }
 .landing-panel--z-privacy { z-index: 40; }
 .landing-panel--z-faq { z-index: 42; }
+.landing-panel--z-about { z-index: 43; }
 .landing-panel--z-cta { z-index: 45; }
 .landing-panel--z-footer { z-index: 46; position: relative; }
 

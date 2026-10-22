@@ -2,7 +2,6 @@ import React, { useState, useEffect, useContext } from 'react';
 import { IoCloseSharp, IoSearch, IoPerson } from 'react-icons/io5';
 import chatContext from '../contexts/ChatContext/chatcontext';
 import API from '../contexts/Api';
-import { toast } from 'react-toastify';
 
 const ShareContactModal = ({ onClose, onShare }) => {
     const { chat, user } = useContext(chatContext);

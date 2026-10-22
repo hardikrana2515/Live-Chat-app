@@ -23,7 +23,7 @@ messageRoutes.post("/deteleMessage", Auth, deleteMessage);
 messageRoutes.post("/deleteMessage", Auth, deleteMessage);
 messageRoutes.put("/markread", Auth, markAsRead);
 messageRoutes.put("/react", Auth, reactToMessage);
-messageRoutes.put("/vote", Auth, votePoll); // Added the vote route
+messageRoutes.put("/vote", Auth, votePoll);
 messageRoutes.put("/editMessage", Auth, editMessage);
 messageRoutes.put("/edit", Auth, editMessage);
 

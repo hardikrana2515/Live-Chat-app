@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import ChatRoom from "../models/Chatroom.model.js";
 import { AsyncHandler } from "../utils/asynchandler.js";
@@ -13,7 +14,7 @@ const userRegister = AsyncHandler(async (req, res) => {
   if (!name || !gender || !userName || !phonenumber || !email || !password) {
     // throw new ApiError(400, "Please Fill All Fields.");
     return res.status(400)
-      .json(new ApiResponse(409, null, "Please Fill All Fields."
+      .json(new ApiResponse(400, null, "Please Fill All Fields."
       ))
   }
   const existingEmail = await User.findOne({ email });
@@ -362,8 +363,8 @@ const resetPassword = AsyncHandler(async (req, res, next) => {
 const sendRequest = AsyncHandler(async (req, res) => {
   const { userId } = req.body; // Target user ID
 
-  if (!userId) {
-    throw new ApiError(400, "User ID is required");
+  if (!userId || !mongoose.isValidObjectId(userId)) {
+    throw new ApiError(400, "Valid User ID is required");
   }
 
   if (req.user._id.toString() === userId.toString()) {
@@ -462,6 +463,9 @@ const acceptRequest = AsyncHandler(async (req, res) => {
       return res.status(200).json(new ApiResponse(200, {}, "Request rejected (sender no longer exists)"));
     }
 
+    if (!Array.isArray(user.friends)) user.friends = [];
+    if (!Array.isArray(senderUser.friends)) senderUser.friends = [];
+
     if (!user.friends.some((f) => (f._id || f).toString() === senderUser._id.toString())) {
       user.friends.push(senderUser._id);
     }
@@ -498,16 +502,18 @@ const acceptRequest = AsyncHandler(async (req, res) => {
 const blockUser = AsyncHandler(async (req, res) => {
   const { userId } = req.body; // User to block
 
+  if (!userId || !mongoose.isValidObjectId(userId)) {
+    return res.status(400).json(new ApiResponse(400, null, "Valid userId is required"));
+  }
+
   const user = await User.findById(req.user._id);
-  // Compare by string: .includes() on an ObjectId array never matches a
-  // string id, which previously created duplicate block entries. (Issue E3)
+  if (!Array.isArray(user.blockedUsers)) {
+    user.blockedUsers = [];
+  }
   if (!user.blockedUsers.some((id) => String(id) === String(userId))) {
     user.blockedUsers.push(userId);
     await user.save();
   }
-
-  // Optional: Remove friend status? standard is typically keeping them or removing. 
-  // Let's keep simpler: just block interactions.
 
   res.status(200).json(new ApiResponse(200, user.blockedUsers, "User blocked successfully"));
 });
@@ -515,8 +521,12 @@ const blockUser = AsyncHandler(async (req, res) => {
 const unblockUser = AsyncHandler(async (req, res) => {
   const { userId } = req.body;
 
+  if (!userId || !mongoose.isValidObjectId(userId)) {
+    return res.status(400).json(new ApiResponse(400, null, "Valid userId is required"));
+  }
+
   const user = await User.findById(req.user._id);
-  user.blockedUsers = user.blockedUsers.filter(id => id.toString() !== userId);
+  user.blockedUsers = (user.blockedUsers || []).filter(id => String(id) !== String(userId));
   await user.save();
 
   res.status(200).json(new ApiResponse(200, user.blockedUsers, "User unblocked successfully"));

@@ -18,7 +18,7 @@ import ShareContactModal from './ShareContactModal';
 
 const Message = ({ onStartCall }) => {
 
-    const { Send, msg, setMsg, AllMessages, setAllmsg, Allmsg } = useContext(messageContext);
+    const { Send, AllMessages, setAllmsg, Allmsg } = useContext(messageContext);
     const { user, selectedchat, setChat, healGroupKeys } = useContext(chatContext);
     const { socket, isConnected } = useContext(SocketContext);
 

@@ -23,7 +23,6 @@ const Addmember = () => {
     const [hasSearched, setHasSearched] = useState(false);
     const debounceRef = useRef(null);
 
-    // Live search: results appear as you type (debounced), no submit needed
     useEffect(() => {
         const q = search.trim();
         if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -36,7 +35,7 @@ const Addmember = () => {
 
         debounceRef.current = setTimeout(async () => {
             try {
-                await GroupUsersearch(q, true); // silent: no toast while typing
+                await GroupUsersearch(q, true);
                 setHasSearched(true);
             } catch (e) {
                 toast.error(e.message);
@@ -46,7 +45,6 @@ const Addmember = () => {
         return () => clearTimeout(debounceRef.current);
     }, [search]);
 
-    // Clear search state when the modal unmounts
     useEffect(() => () => { setGSearchUser([]); setGLoading(false); }, []);
 
     const handleSubmit = async (e) => {
@@ -79,8 +77,6 @@ const Addmember = () => {
 
     const handleAddmem = async () => {
         try {
-            // Pass full member objects (with publicKey) so the group key can
-            // be wrapped for them before they are added (Issue 3.2)
             const res = await AddinGroup(selectedMembers, selectedchat._id);
 
             setSelectedchat(res);
@@ -92,7 +88,6 @@ const Addmember = () => {
         }
     };
 
-    // Don't offer people who are already in the group or yourself
     const results = GsearchUser.filter(
         (u) => u._id !== selectedchat?.creator &&
             !selectedchat?.members?.some((member) => member._id === u._id)

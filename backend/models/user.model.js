@@ -75,8 +75,6 @@ const userschema = new mongoose.Schema(
         ref: "User",
       },
     ],
-    // ECDH P-256 public key (raw, base64). The matching private key never
-    // leaves the user's device (localStorage) — see frontend cryptoKeys.js. (Issue 3.2)
     publicKey: {
       type: String,
       default: "",
@@ -95,10 +93,8 @@ userschema.methods.generateAuthToken = function () {
 };
 
 userschema.methods.getResetPasswordToken = function () {
-  // Generating Token
   const resetToken = crypto.randomBytes(20).toString("hex");
 
-  // Hashing and adding to userSchema
   this.resetPasswordToken = crypto
     .createHash("sha256")
     .update(resetToken)

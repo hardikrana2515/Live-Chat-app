@@ -37,19 +37,16 @@ const LandingFooter = () => {
           {/* Brand Info (Left Column - 6 cols) */}
           <div className="lg:col-span-6 flex flex-col justify-between">
             <div>
-              <Link to="/" className="group inline-flex items-center gap-2.5" aria-label="Talkyy home">
+              <Link to="/" className="group inline-flex items-center" aria-label="Talkyy home">
                 <img
-                  src="/Logo1.png"
-                  alt=""
-                  className="h-8 w-8 object-contain transition-transform duration-200 group-hover:scale-105 group-hover:-rotate-3"
+                  src="/brand/talkyy-horizontal-clean.png"
+                  alt="Talkyy"
+                  className="h-9 w-auto max-w-[170px] object-contain transition-transform duration-200 group-hover:scale-[1.02]"
                 />
-                <span className="font-display text-xl font-bold tracking-tight text-[var(--c-primary-ink)]">
-                  Talkyy
-                </span>
               </Link>
 
-              <p className="mt-4 text-base font-medium text-[var(--c-primary-ink)] max-w-md">
-                A calmer space for the conversations that matter.
+              <p className="mt-4 text-base font-semibold tracking-tight text-[var(--c-primary-ink)] max-w-md">
+                A calmer space for real conversations.
               </p>
 
               <p className="mt-2 text-sm leading-relaxed text-[var(--c-secondary-ink)] max-w-md">
@@ -127,7 +124,12 @@ const LandingFooter = () => {
             <span className="text-[var(--c-divider)]" aria-hidden="true">&middot;</span>
             <a
               href="#top"
-              className="group inline-flex items-center gap-1.5 font-semibold text-[var(--c-primary-ink)] hover:text-[#2858E8] transition-colors"
+              onClick={(e) => {
+                e.preventDefault();
+                window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+              }}
+              className="group inline-flex items-center gap-1.5 font-semibold text-[var(--c-primary-ink)] hover:text-[#2858E8] transition-colors cursor-pointer"
+              aria-label="Scroll back to top of page"
             >
               <span>Back to top</span>
               <FiArrowUp className="text-sm transition-transform duration-200 group-hover:-translate-y-1" />

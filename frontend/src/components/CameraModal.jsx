@@ -1,6 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
 import { IoClose, IoCamera, IoSend, IoRefresh } from 'react-icons/io5';
-import { toast } from 'react-toastify';
 
 const CameraModal = ({ isOpen, onClose, onCapture }) => {
     const videoRef = useRef(null);

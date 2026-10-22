@@ -7,12 +7,11 @@ import chatContext from "../contexts/ChatContext/chatcontext";
 import Message from "./Message";
 import SocketContext from '../contexts/Socket.io.Context/socket.Context.js'
 import API from '../contexts/Api.js';
-import { toast } from 'react-toastify';
 import TypingIndicator from './TypingIndicator';
 import { IoVideocam, IoCall } from "react-icons/io5";
 
 const ChatBox = ({ onStartCall }) => {
-    const { user, setUser, selectedchat, setSelectedchat, setChatmodal, setSettingmodal, setYesmodal, handleBlock, handleUnblock, setModalType } = useContext(chatContext)
+    const { user, selectedchat, setSelectedchat, setChatmodal, setSettingmodal, setYesmodal, handleUnblock, setModalType } = useContext(chatContext)
     const { socket, onlineUsers } = useContext(SocketContext);
     const [isTyping, setIsTyping] = useState(false);
     const [activeGroupCall, setActiveGroupCall] = useState(null); // { isActive, callType, participantCount }

@@ -22,8 +22,12 @@ const Chatpart = ({ onStartCall }) => {
 
       <section className="relative w-full max-w-md px-7 text-center sm:px-14 animate-fadeIn">
         <div className="mb-8 flex items-center justify-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--c-primary-soft)] text-[var(--c-link)] avatar-ring">
-            <FiMessageCircle className="text-2xl" />
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--c-panel)] border border-[var(--c-line)] p-2 shadow-sm avatar-ring">
+            <img
+              src="/brand/talkyy-symbol-transparent.png"
+              alt="Talkyy"
+              className="w-full h-full object-contain"
+            />
           </span>
           <span className="label-micro">Pick up where you left off</span>
         </div>

@@ -6,7 +6,7 @@ import { MdOutlineArrowBack } from "react-icons/md";
 import chatContext from '../contexts/ChatContext/chatcontext'
 
 const Group = () => {
-    const { groupchat, setGroupchat, group, setGroup, CreateGroup,
+    const { setGroupchat, CreateGroup,
         GroupUsersearch, setGLoading, setGSearchUser, GsearchUser, GLoading, Allchat } = useContext(chatContext);
     const [search, setSearch] = useState('');
     const [icon, setIcon] = useState('');

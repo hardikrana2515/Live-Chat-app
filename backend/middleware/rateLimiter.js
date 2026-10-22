@@ -14,9 +14,8 @@ export const rateLimit = ({
   max = 60,
   message = "Too many requests. Please slow down and try again later.",
 } = {}) => {
-  const hits = new Map(); // key -> [timestamps]
+  const hits = new Map();
 
-  // Periodic cleanup of stale entries every 5 minutes to avoid memory leaks
   setInterval(() => {
     const now = Date.now();
     for (const [key, timestamps] of hits.entries()) {
@@ -30,7 +29,6 @@ export const rateLimit = ({
   }, 5 * 60 * 1000).unref();
 
   return (req, res, next) => {
-    // Key by authenticated userId or client IP
     const key = req.user?._id ? String(req.user._id) : (req.ip || req.socket.remoteAddress || "global");
     const now = Date.now();
 

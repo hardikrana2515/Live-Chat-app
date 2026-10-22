@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion as Motion } from "framer-motion";
 
 const TypingIndicator = () => {
     return (
@@ -6,7 +6,7 @@ const TypingIndicator = () => {
             typing
             <span className="inline-flex items-end gap-[3px] h-2.5">
                 {[0, 1, 2].map((i) => (
-                    <motion.span
+                    <Motion.span
                         key={i}
                         className="w-1 h-1 rounded-full bg-[var(--c-text-3)]"
                         animate={{ y: [0, -3, 0], opacity: [0.4, 1, 0.4] }}

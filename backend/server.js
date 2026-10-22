@@ -8,8 +8,6 @@ import { fileURLToPath } from 'url';
 import { Server } from 'socket.io'
 import http from 'http'
 
-// Anchor paths to this file's directory (backend/), so the server works no
-// matter which directory Node was started from. (Issue E4)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
@@ -56,8 +54,7 @@ app.get("/", (req, res) => {
   res.send("Hello Chatt!");
 });
 
-//Route
-import userRouter from "../backend/routes/user.routes.js";
+import userRouter from "./routes/user.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 import ChatRoutes from "./routes/chat.routes.js";
 
@@ -73,7 +70,7 @@ const port = process.env.PORT || 4000;
 connectDB();
 
 const onlineUsers = new Map();
-const activeGroupCalls = new Map(); // chatId -> { chatId, chatName, callType, startedAt, participants: Map(socketId -> user) }
+const activeGroupCalls = new Map()
 
 import User from "./models/user.model.js";
 import ChatRoom from "./models/Chatroom.model.js";
@@ -83,7 +80,6 @@ app.set('io', io);
 
 const toId = (v) => String(v?._id ?? v ?? '');
 
-// Resolve a chat's member ids (payload may carry a populated chat or just an id)
 const resolveMemberIds = async (chat) => {
   if (chat?.members?.length) return chat.members.map(toId);
   const chatId = toId(chat);
@@ -102,7 +98,6 @@ io.on("connection", (socket) => {
     onlineUsers.set(uid, socket.id);
     io.emit("getOnlineUsers", Array.from(onlineUsers.keys()));
 
-    // Update isOnline status
     await User.findByIdAndUpdate(uid, { isOnline: true });
 
     console.log(`${userData?.name || uid} joined personal room: ${uid}`);
@@ -117,7 +112,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("typing", async (room) => {
-    // Don't relay typing to blocked users (Issue §6.1)
     const uid = [...onlineUsers.entries()].find(([, sid]) => sid === socket.id)?.[0];
     if (uid) {
       try {
@@ -132,10 +126,6 @@ io.on("connection", (socket) => {
     socket.in(toId(room)).emit("typing", room);
   });
   socket.on("stop typing", (room) => socket.in(toId(room)).emit("stop typing", room));
-
-  // Message mutations must reach EVERY member, not only those who currently
-  // have the chat room open (clients join chat rooms only while viewing them).
-  // Personal rooms (joined at "setup") guarantee delivery everywhere. (Issue 2.2)
 
   socket.on("new reaction", async (updatedMsg) => {
     const chat = updatedMsg?.chatId || updatedMsg?.chat;
@@ -153,7 +143,6 @@ io.on("connection", (socket) => {
 
   socket.on("delete message", async (data) => {
     if (!data?.chatId) return;
-    // "Delete for me" is a private action — never relay it to other members
     if (!data.forEveryone) return;
     const memberIds = await resolveMemberIds(data.chatId);
     if (!memberIds.length) return socket.in(toId(data.chatId)).emit("message deleted", data);
@@ -187,7 +176,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("new message", async (msg) => {
-    let chat = msg?.chat;
+    let chat = msg?.chat || msg?.chatId;
     let members = chat?.members;
     if (!members?.length && (chat?._id || chat)) {
       members = await resolveMemberIds(chat?._id || chat);
@@ -203,9 +192,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Call Signaling Events (normalized room delivery)
   socket.on("callUser", (data) => {
-    // data: { userToCall, signalData, from, name, callType }
     const targetId = toId(data?.userToCall);
     const callerId = toId(data?.from);
     console.log(`[Socket] callUser from ${callerId} (${data?.name}) to ${targetId}`);
@@ -219,24 +206,16 @@ io.on("connection", (socket) => {
   });
 
   socket.on("answerCall", (data) => {
-    // data: { signal, to }
     const targetId = toId(data?.to);
     console.log(`[Socket] answerCall to ${targetId}`);
     io.to(targetId).emit("callAccepted", data?.signal);
-
-    // Notify other tabs belonging to this user so call modal closes (Issue §3.4)
     const uid = [...onlineUsers.entries()].find(([, sid]) => sid === socket.id)?.[0];
-    if (uid) socket.to(uid).emit("callHandled");
   });
 
   socket.on("endCall", ({ to }) => {
     const targetId = toId(to);
     console.log(`[Socket] endCall to ${targetId}`);
     io.to(targetId).emit("callEnded");
-
-    // Notify other tabs belonging to this user so incoming modal closes (Issue §3.4)
-    const uid = [...onlineUsers.entries()].find(([, sid]) => sid === socket.id)?.[0];
-    if (uid) socket.to(uid).emit("callEnded");
   });
 
   socket.on("cameraToggle", (data) => {
@@ -246,7 +225,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Group Call Signaling Events
   socket.on("startGroupCall", async ({ chatId, chatName, initiator, callType }) => {
     const cId = toId(chatId);
     if (!cId) return;
@@ -319,10 +297,8 @@ io.on("connection", (socket) => {
       socketId: socket.id
     });
 
-    // 1. Send all existing participants to the joining user
     socket.emit("allGroupCallUsers", existingParticipants);
 
-    // 2. Broadcast to existing participants that a new peer joined
     socket.to(`call_${cId}`).emit("userJoinedGroupCall", {
       socketId: socket.id,
       user

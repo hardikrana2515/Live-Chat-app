@@ -88,20 +88,17 @@ const LandingHeader = () => {
       }`}
     >
       <div className="mx-auto flex h-16 w-full max-w-[1240px] items-center justify-between gap-6 px-5">
-        {/* Left: Brand Wordmark */}
+        {/* Left: Brand Horizontal Logo */}
         <Link
           to="/"
-          className="group flex shrink-0 items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2858E8]"
+          className="group flex shrink-0 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2858E8]"
           aria-label="Talkyy home"
         >
           <img
-            src="/Logo1.png"
-            alt=""
-            className="h-8 w-8 object-contain transition-transform duration-200 group-hover:scale-105 group-hover:-rotate-3"
+            src="/brand/talkyy-horizontal-clean.png"
+            alt="Talkyy"
+            className="h-8 sm:h-9 w-auto max-w-[140px] sm:max-w-[160px] object-contain transition-transform duration-200 group-hover:scale-[1.02]"
           />
-          <span className="font-display text-xl font-bold tracking-tight text-[var(--c-primary-ink)]">
-            Talkyy
-          </span>
         </Link>
 
         {/* Center: Main Navigation */}
