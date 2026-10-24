@@ -50,9 +50,9 @@ const SocketStates = ({ children, ENDPOINT }) => {
             setSocketInstance(null);
         }
 
-        if (!socket.current) {
+        if (!socket.current && ENDPOINT) {
             const s = io(ENDPOINT, {
-                transports: ['websocket'],
+                transports: ['polling', 'websocket'],
                 withCredentials: true,
                 auth: {
                     token: token

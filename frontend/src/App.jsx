@@ -20,7 +20,10 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 
 function App() {
-  const SOCKET_ENDPOINT = import.meta.env.VITE_SOCKET_URL || (import.meta.env.PROD ? window.location.origin : "http://localhost:4000");
+  const SOCKET_ENDPOINT =
+    import.meta.env.VITE_SOCKET_URL ||
+    (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/ChatApp\/?$/, '') : '') ||
+    (import.meta.env.PROD ? "" : "http://localhost:4000");
 
   return (
     <ErrorBoundary>

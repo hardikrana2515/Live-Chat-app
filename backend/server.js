@@ -138,7 +138,8 @@ app.get('/media/:filename', async (req, res) => {
     return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
 
-  const user = await User.findById(decoded.id).select('tokenVersion');
+  const userId = decoded._id || decoded.id;
+  const user = await User.findById(userId).select('tokenVersion');
   if (!user || (user.tokenVersion || 0) !== (decoded.tokenVersion || 0)) {
     return res.status(401).json({ success: false, message: 'Session has been revoked' });
   }
