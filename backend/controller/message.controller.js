@@ -5,6 +5,7 @@ import User from "../models/user.model.js";
 import { AsyncHandler } from "../utils/asynchandler.js";
 import { ApiError } from "../utils/Apierror.js";
 import { ApiResponse } from "../utils/Apiresponse.js";
+import { uploadToCloudinary } from "../utils/cloudinary.js";
 
 const sendMessage = AsyncHandler(async (req, res) => {
   const { message, chatId } = req.body;
@@ -117,7 +118,11 @@ const sendMessage = AsyncHandler(async (req, res) => {
     }
   }
 
-  const mediaUrl = formData ? `/media/${req.file.filename}` : "";
+  let mediaUrl = "";
+  if (formData) {
+    const cloudinaryUrl = await uploadToCloudinary(req.file.path, 'talkyy/attachments', 'auto');
+    mediaUrl = cloudinaryUrl || `/media/${req.file.filename}`;
+  }
 
   const newMessage = await Message.create({
     Sender: userId,

@@ -192,14 +192,16 @@ export const encryptFile = async (file, chat) => {
 
 export const decryptFile = async (url, chatId) => {
     try {
+        const isExternal = url.includes('cloudinary.com') || (url.startsWith('http') && !url.includes('/media/'));
         const token = localStorage.getItem('token');
         const headers = {};
-        if (token) headers['Authorization'] = `Bearer ${token}`;
+        if (token && !isExternal) headers['Authorization'] = `Bearer ${token}`;
+        const fetchOptions = isExternal ? {} : { credentials: 'include', headers };
 
         // Non-encrypted attachments: fetch with authentication and return safe blob URL
         if (!url.endsWith('.enc')) {
             if (url.startsWith('http')) {
-                const response = await fetch(url, { credentials: 'include', headers });
+                const response = await fetch(url, fetchOptions);
                 if (response.ok) {
                     const blob = await response.blob();
                     return URL.createObjectURL(blob);
@@ -208,7 +210,7 @@ export const decryptFile = async (url, chatId) => {
             return url;
         }
 
-        const response = await fetch(url, { credentials: 'include', headers });
+        const response = await fetch(url, fetchOptions);
         const ciphertext = await response.text();
 
         let originalDataUrl;

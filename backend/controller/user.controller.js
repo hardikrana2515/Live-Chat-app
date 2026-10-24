@@ -16,6 +16,7 @@ import {
   verifyTwoFactorToken,
   verifyBackupCode
 } from "../utils/twoFactor.utils.js";
+import { uploadToCloudinary } from "../utils/cloudinary.js";
 
 
 const userRegister = AsyncHandler(async (req, res) => {
@@ -212,7 +213,8 @@ const uploadImage = AsyncHandler(async (req, res) => {
     throw new ApiError(401, "Please first select file!");
   }
 
-  const imageUrl = `/Image/${req.file.filename}`;
+  const cloudinaryUrl = await uploadToCloudinary(req.file.path, 'talkyy/avatars', 'image');
+  const imageUrl = cloudinaryUrl || `/Image/${req.file.filename}`;
 
   const user = await User.findByIdAndUpdate(
     req.user._id,

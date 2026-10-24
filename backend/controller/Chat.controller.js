@@ -5,6 +5,7 @@ import { AsyncHandler } from "../utils/asynchandler.js";
 import { ApiResponse } from "../utils/Apiresponse.js";
 import ChatRoom from "../models/Chatroom.model.js";
 import User from "../models/user.model.js";
+import { uploadToCloudinary } from "../utils/cloudinary.js";
 
 const toId = (v) => String(v?._id ?? v ?? '');
 
@@ -129,7 +130,8 @@ const CreateGroup = AsyncHandler(async (req, res) => {
    
   let groupIcon = "";
   if (req.file) {
-    groupIcon = `/Image/${req.file.filename}`;
+    const cloudinaryUrl = await uploadToCloudinary(req.file.path, 'talkyy/group_icons', 'image');
+    groupIcon = cloudinaryUrl || `/Image/${req.file.filename}`;
   }
 
   if (typeof members === "string") {
@@ -681,7 +683,8 @@ const UploadGroupIcon = AsyncHandler(async (req, res) => {
               .json(new ApiResponse(403, null, "Only admins can change groupIcon!"));
   }
 
-  const imageUrl = `/Image/${req.file.filename}`;
+  const cloudinaryUrl = await uploadToCloudinary(req.file.path, 'talkyy/group_icons', 'image');
+  const imageUrl = cloudinaryUrl || `/Image/${req.file.filename}`;
   chat.groupIcon = imageUrl;
   await chat.save();
 
