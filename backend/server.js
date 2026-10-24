@@ -21,6 +21,7 @@ const envPath = fs.existsSync(localEnv)
 dotenv.config({ path: envPath });
 
 const app = express();
+app.set("trust proxy", 1);
 const server = http.createServer(app);
 
 // Operational Hardening: HTTP Security Headers (Audit M6)

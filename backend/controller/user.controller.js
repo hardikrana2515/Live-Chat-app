@@ -125,7 +125,7 @@ const userLogin = AsyncHandler(async (req, res) => {
   res.cookie("token", Authtoken, {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? "strict" : "lax",
+    sameSite: isProd ? "none" : "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
@@ -170,7 +170,7 @@ const userLogout = AsyncHandler(async (req, res) => {
     httpOnly: true,
     expires: new Date(0),
     secure: isProd,
-    sameSite: isProd ? "strict" : "lax",
+    sameSite: isProd ? "none" : "lax",
     path: "/",
   });
 
@@ -1263,7 +1263,7 @@ const verifyTwoFactorLogin = AsyncHandler(async (req, res) => {
   res.cookie("token", Authtoken, {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? "strict" : "lax",
+    sameSite: isProd ? "none" : "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
