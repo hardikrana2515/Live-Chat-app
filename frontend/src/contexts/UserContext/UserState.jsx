@@ -216,18 +216,110 @@ const UserState = ({ children }) => {
                 },
                 withCredentials: true
             })
+            
+            // If 2FA is required, return response to trigger 2FA challenge UI
+            if (res.data?.data?.requires2FA) {
+                return res.data;
+            }
+
             const token = res.data.data.Authtoken;
             const userInfo = res.data.data.loggedinUser;
             localStorage.setItem("token", token);
             localStorage.setItem("userInfo", JSON.stringify(userInfo));
             setUser({ ...userInfo, token });
-            // console.log(res.data);
-            return res.data
+            return res.data;
         } catch (e) {
             const errorMessage = e?.response?.data?.message || "Login failed";
             throw new Error(errorMessage);
         }
     }
+
+    const Verify2FALoginFunc = async (twoFactorToken, code, isBackupCode = false) => {
+        try {
+            const res = await API.post("user/2fa/verify-login", { twoFactorToken, code, isBackupCode }, {
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                withCredentials: true
+            });
+            const token = res.data.data.Authtoken;
+            const userInfo = res.data.data.loggedinUser;
+            localStorage.setItem("token", token);
+            localStorage.setItem("userInfo", JSON.stringify(userInfo));
+            setUser({ ...userInfo, token });
+            return res.data;
+        } catch (e) {
+            const errorMessage = e?.response?.data?.message || "2FA verification failed";
+            throw new Error(errorMessage);
+        }
+    };
+
+    const get2FAStatus = async () => {
+        try {
+            const res = await API.get("user/2fa/status", {
+                headers: { Authorization: user.token || localStorage.getItem("token") },
+                withCredentials: true
+            });
+            return res.data?.data;
+        } catch (e) {
+            const errorMessage = e?.response?.data?.message || "Failed to fetch 2FA status";
+            throw new Error(errorMessage);
+        }
+    };
+
+    const setup2FA = async () => {
+        try {
+            const res = await API.post("user/2fa/setup", {}, {
+                headers: { Authorization: user.token || localStorage.getItem("token") },
+                withCredentials: true
+            });
+            return res.data?.data;
+        } catch (e) {
+            const errorMessage = e?.response?.data?.message || "Failed to initiate 2FA setup";
+            throw new Error(errorMessage);
+        }
+    };
+
+    const confirm2FA = async (code) => {
+        try {
+            const res = await API.post("user/2fa/confirm", { code }, {
+                headers: { Authorization: user.token || localStorage.getItem("token") },
+                withCredentials: true
+            });
+            await GetUser();
+            return res.data?.data;
+        } catch (e) {
+            const errorMessage = e?.response?.data?.message || "Failed to confirm 2FA code";
+            throw new Error(errorMessage);
+        }
+    };
+
+    const disable2FA = async (password, code) => {
+        try {
+            const res = await API.post("user/2fa/disable", { password, code }, {
+                headers: { Authorization: user.token || localStorage.getItem("token") },
+                withCredentials: true
+            });
+            await GetUser();
+            return res.data?.data;
+        } catch (e) {
+            const errorMessage = e?.response?.data?.message || "Failed to disable 2FA";
+            throw new Error(errorMessage);
+        }
+    };
+
+    const regenerateBackupCodes = async (password) => {
+        try {
+            const res = await API.post("user/2fa/regenerate-backup-codes", { password }, {
+                headers: { Authorization: user.token || localStorage.getItem("token") },
+                withCredentials: true
+            });
+            return res.data?.data;
+        } catch (e) {
+            const errorMessage = e?.response?.data?.message || "Failed to regenerate backup codes";
+            throw new Error(errorMessage);
+        }
+    };
 
     const GetUser = async () => {
         try {
@@ -433,7 +525,13 @@ const UserState = ({ children }) => {
             checkIdentityStatus,
             performInitialSetup,
             performIdentityRecovery,
-            performIdentityReset
+            performIdentityReset,
+            Verify2FALoginFunc,
+            get2FAStatus,
+            setup2FA,
+            confirm2FA,
+            disable2FA,
+            regenerateBackupCodes
         }}>
             {children}
         </UserContext.Provider>

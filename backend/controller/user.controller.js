@@ -1,10 +1,21 @@
 import mongoose from "mongoose";
+import jwt from "jsonwebtoken";
 import User from "../models/user.model.js";
 import ChatRoom from "../models/Chatroom.model.js";
 import { AsyncHandler } from "../utils/asynchandler.js";
 import { ApiError } from "../utils/Apierror.js";
 import { ApiResponse } from "../utils/Apiresponse.js";
 import multiavatar from '@multiavatar/multiavatar/esm'
+import {
+  encryptSecret,
+  decryptSecret,
+  generateTwoFactorSecret,
+  generateTwoFactorURI,
+  generateQRCodeDataUrl,
+  generateBackupCodes,
+  verifyTwoFactorToken,
+  verifyBackupCode
+} from "../utils/twoFactor.utils.js";
 
 
 const userRegister = AsyncHandler(async (req, res) => {
@@ -85,6 +96,27 @@ const userLogin = AsyncHandler(async (req, res) => {
     return res.status(400)
       .json(new ApiResponse(400, null, "Incorrect password"
       ));
+  }
+
+  // Intercept if Two-Factor Authentication is enabled
+  if (user.twoFactor?.enabled) {
+    const twoFactorToken = jwt.sign(
+      { _id: user._id, action: "2fa_verify" },
+      process.env.JWT_SECRET,
+      { expiresIn: "5m" }
+    );
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          requires2FA: true,
+          twoFactorToken,
+          email: user.email,
+        },
+        "Two-factor authentication required. Please enter code from your authenticator app."
+      )
+    );
   }
 
   const Authtoken = await user.generateAuthToken();
@@ -973,6 +1005,279 @@ const setPublicKey = AsyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, { publicKey: user.publicKey }, "Public key saved"));
 });
 
+/**
+ * GET 2FA Status
+ */
+const getTwoFactorStatus = AsyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id).select("twoFactor.enabled twoFactor.backupCodes");
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const enabled = Boolean(user.twoFactor?.enabled);
+  const backupCodesRemaining = (user.twoFactor?.backupCodes || []).filter((b) => !b.used).length;
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      enabled,
+      backupCodesRemaining,
+    }, "2FA status retrieved")
+  );
+});
+
+/**
+ * Step 1: Initiate 2FA Setup
+ * Generates temporary TOTP secret & QR code. Does NOT activate 2FA until verified!
+ */
+const setupTwoFactor = AsyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const secret = generateTwoFactorSecret();
+  const uri = generateTwoFactorURI(user.email, secret);
+  const qrCodeDataUrl = await generateQRCodeDataUrl(uri);
+
+  // Encrypt secret with AES-256-GCM before storing in database
+  const encryptedSecret = encryptSecret(secret);
+
+  user.twoFactor.tempSecret = encryptedSecret;
+  user.twoFactor.tempSecretExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
+  await user.save();
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      qrCode: qrCodeDataUrl,
+      manualKey: secret,
+      issuer: "Talkyy",
+      account: user.email,
+    }, "2FA setup initiated. Please scan QR code in Google Authenticator or your authenticator app.")
+  );
+});
+
+/**
+ * Step 2: Confirm & Activate 2FA
+ * User submits live 6-digit code. Validates and generates one-time emergency backup codes.
+ */
+const confirmTwoFactor = AsyncHandler(async (req, res) => {
+  const { code } = req.body;
+  if (!code || !/^\d{6}$/.test(code.toString().trim())) {
+    return res.status(400).json(new ApiResponse(400, null, "Please enter a valid 6-digit verification code"));
+  }
+
+  const user = await User.findById(req.user._id).select("+twoFactor.tempSecret");
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (!user.twoFactor?.tempSecret) {
+    return res.status(400).json(new ApiResponse(400, null, "No 2FA setup in progress. Please start setup again."));
+  }
+
+  if (user.twoFactor.tempSecretExpires && user.twoFactor.tempSecretExpires < new Date()) {
+    user.twoFactor.tempSecret = "";
+    user.twoFactor.tempSecretExpires = null;
+    await user.save();
+    return res.status(400).json(new ApiResponse(400, null, "2FA setup session expired. Please start again."));
+  }
+
+  const plainSecret = decryptSecret(user.twoFactor.tempSecret);
+  if (!plainSecret) {
+    throw new ApiError(500, "Failed to decrypt 2FA setup key");
+  }
+
+  const result = verifyTwoFactorToken(code, plainSecret);
+  if (!result.valid) {
+    return res.status(400).json(new ApiResponse(400, null, "Invalid verification code. Please check your authenticator app time and try again."));
+  }
+
+  // Generate 8 emergency one-time backup codes
+  const { rawCodes, hashedCodes } = generateBackupCodes(8);
+
+  user.twoFactor.enabled = true;
+  user.twoFactor.secret = user.twoFactor.tempSecret;
+  user.twoFactor.tempSecret = "";
+  user.twoFactor.tempSecretExpires = null;
+  user.twoFactor.backupCodes = hashedCodes;
+  user.twoFactor.lastUsedTimeStep = result.timeStep || 0;
+  await user.save();
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      enabled: true,
+      backupCodes: rawCodes, // User must save these now!
+    }, "Two-factor authentication successfully enabled! Make sure to save your backup codes safely.")
+  );
+});
+
+/**
+ * Disable 2FA
+ * Requires confirmation with user's current password or valid 2FA code.
+ */
+const disableTwoFactor = AsyncHandler(async (req, res) => {
+  const { password, code } = req.body;
+  if (!password && !code) {
+    return res.status(400).json(new ApiResponse(400, null, "Please provide your current password to disable 2FA."));
+  }
+
+  const user = await User.findById(req.user._id).select("+password +twoFactor.secret");
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (!user.twoFactor?.enabled) {
+    return res.status(400).json(new ApiResponse(400, null, "Two-factor authentication is already disabled."));
+  }
+
+  let authorized = false;
+  if (password) {
+    authorized = await user.comparePassword(password);
+  } else if (code) {
+    const plainSecret = decryptSecret(user.twoFactor.secret);
+    if (plainSecret) {
+      const check = verifyTwoFactorToken(code, plainSecret);
+      authorized = check.valid;
+    }
+  }
+
+  if (!authorized) {
+    return res.status(401).json(new ApiResponse(401, null, "Invalid password or verification code. Could not disable 2FA."));
+  }
+
+  user.twoFactor.enabled = false;
+  user.twoFactor.secret = "";
+  user.twoFactor.tempSecret = "";
+  user.twoFactor.tempSecretExpires = null;
+  user.twoFactor.backupCodes = [];
+  user.twoFactor.lastUsedTimeStep = 0;
+  await user.save();
+
+  return res.status(200).json(
+    new ApiResponse(200, { enabled: false }, "Two-factor authentication disabled successfully.")
+  );
+});
+
+/**
+ * Regenerate Emergency Backup Codes
+ * Requires current password.
+ */
+const regenerateBackupCodes = AsyncHandler(async (req, res) => {
+  const { password } = req.body;
+  if (!password) {
+    return res.status(400).json(new ApiResponse(400, null, "Password is required to regenerate backup codes."));
+  }
+
+  const user = await User.findById(req.user._id).select("+password");
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (!user.twoFactor?.enabled) {
+    return res.status(400).json(new ApiResponse(400, null, "Two-factor authentication is not enabled."));
+  }
+
+  const isCorrect = await user.comparePassword(password);
+  if (!isCorrect) {
+    return res.status(401).json(new ApiResponse(401, null, "Incorrect password."));
+  }
+
+  const { rawCodes, hashedCodes } = generateBackupCodes(8);
+  user.twoFactor.backupCodes = hashedCodes;
+  await user.save();
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      backupCodes: rawCodes,
+    }, "New backup codes generated. Previous backup codes are now invalidated.")
+  );
+});
+
+/**
+ * Step 2 of 2-Step Login:
+ * Verifies short-lived twoFactorToken + TOTP code or Backup code.
+ */
+const verifyTwoFactorLogin = AsyncHandler(async (req, res) => {
+  const { twoFactorToken, code, isBackupCode } = req.body;
+
+  if (!twoFactorToken || !code) {
+    return res.status(400).json(new ApiResponse(400, null, "2FA token and verification code are required."));
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(twoFactorToken, process.env.JWT_SECRET);
+  } catch (err) {
+    return res.status(401).json(new ApiResponse(401, null, "2FA verification session expired or invalid. Please login again."));
+  }
+
+  if (decoded.action !== "2fa_verify" || !decoded._id) {
+    return res.status(401).json(new ApiResponse(401, null, "Invalid verification token."));
+  }
+
+  const user = await User.findById(decoded._id).select("+twoFactor.secret");
+  if (!user || !user.twoFactor?.enabled) {
+    return res.status(401).json(new ApiResponse(401, null, "User not found or 2FA not enabled."));
+  }
+
+  if (isBackupCode) {
+    // Emergency Backup Code check
+    const match = verifyBackupCode(code, user.twoFactor.backupCodes);
+    if (!match.matched) {
+      return res.status(400).json(new ApiResponse(400, null, "Invalid or already used backup code."));
+    }
+
+    // Mark this single-use code as used
+    user.twoFactor.backupCodes[match.index].used = true;
+    user.twoFactor.backupCodes[match.index].usedAt = new Date();
+  } else {
+    // Live TOTP Authenticator code check
+    const cleanCode = code.toString().trim();
+    if (!/^\d{6}$/.test(cleanCode)) {
+      return res.status(400).json(new ApiResponse(400, null, "Authenticator code must be exactly 6 digits."));
+    }
+
+    const plainSecret = decryptSecret(user.twoFactor.secret);
+    if (!plainSecret) {
+      throw new ApiError(500, "Security error: Unable to verify 2FA secret.");
+    }
+
+    const check = verifyTwoFactorToken(cleanCode, plainSecret);
+    if (!check.valid) {
+      return res.status(400).json(new ApiResponse(400, null, "Invalid 6-digit code. Please check your authenticator app time and try again."));
+    }
+
+    // Replay attack prevention: Ensure the exact same time step is not reused
+    if (check.timeStep && user.twoFactor.lastUsedTimeStep === check.timeStep) {
+      return res.status(400).json(new ApiResponse(400, null, "This code was already used. Please wait 30 seconds for the next code."));
+    }
+
+    user.twoFactor.lastUsedTimeStep = check.timeStep || 0;
+  }
+
+  await user.save();
+
+  // 2FA passed! Issue full auth credentials
+  const Authtoken = await user.generateAuthToken();
+  const isProd = process.env.NODE_ENV === "production";
+  res.cookie("token", Authtoken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "strict" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  const loggedinUser = await User.findById(user._id).select("-password -resetPasswordToken -resetPasswordExpire");
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { loggedinUser, Authtoken },
+      "2FA verification successful. Logged in!"
+    )
+  );
+});
+
 export {
   userRegister,
   userLogin,
@@ -994,5 +1299,11 @@ export {
   registerIdentityVault,
   updateIdentityVault,
   resetIdentity,
-  updateProfile
+  updateProfile,
+  getTwoFactorStatus,
+  setupTwoFactor,
+  confirmTwoFactor,
+  disableTwoFactor,
+  regenerateBackupCodes,
+  verifyTwoFactorLogin
 };

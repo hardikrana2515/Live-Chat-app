@@ -157,6 +157,46 @@ const userschema = new mongoose.Schema(
         },
       },
     },
+    twoFactor: {
+      enabled: {
+        type: Boolean,
+        default: false,
+      },
+      secret: {
+        type: String,
+        default: "",
+        select: false,
+      },
+      tempSecret: {
+        type: String,
+        default: "",
+        select: false,
+      },
+      tempSecretExpires: {
+        type: Date,
+        default: null,
+      },
+      backupCodes: [
+        {
+          codeHash: {
+            type: String,
+            required: true,
+          },
+          used: {
+            type: Boolean,
+            default: false,
+          },
+          usedAt: {
+            type: Date,
+            default: null,
+          },
+        },
+      ],
+      lastUsedTimeStep: {
+        type: Number,
+        default: 0,
+      },
+    },
   },
   {
     timestamps: true,

@@ -20,6 +20,7 @@ import {
 import userContext from '../contexts/UserContext/userContext';
 import { getApiBaseUrl } from '../contexts/Api.js';
 import { toast } from 'react-toastify';
+import TwoFactorModal from './TwoFactorModal.jsx';
 import {
   getPreference,
   setPreference,
@@ -31,6 +32,7 @@ import {
 const Account = () => {
   const { setCard, user, GetUser, UploadImg, updatePassword, updateProfile, setLogoutModal, setShowSetupModal, setShowRecoveryModal, vaultData, identityState } = useContext(userContext);
   const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'settings'
+  const [show2FAModal, setShow2FAModal] = useState(false);
 
   // Profile editing states
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -735,6 +737,44 @@ const Account = () => {
                 </form>
               </div>
 
+              {/* Two-Factor Authentication (2FA) Card */}
+              <div className="p-4 rounded-2xl bg-[var(--c-canvas-80)] border border-[var(--c-line-50)] space-y-3">
+                <div className="flex items-center justify-between border-b border-[var(--c-line)] pb-2">
+                  <div className="flex items-center gap-2">
+                    <FiShield className="text-[var(--c-link)] text-sm" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--c-text-2)]">
+                      Two-Factor Authentication (2FA)
+                    </h3>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                    user?.twoFactor?.enabled
+                      ? 'bg-emerald-500/15 text-emerald-600 border border-emerald-500/30'
+                      : 'bg-zinc-500/10 text-zinc-500 border border-zinc-500/20'
+                  }`}>
+                    {user?.twoFactor?.enabled ? 'Active' : 'Not Active'}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h5 className="text-xs font-semibold text-[var(--c-text)]">
+                      Authenticator App Protection
+                    </h5>
+                    <p className="text-[11px] text-[var(--c-text-3)] leading-relaxed mt-0.5">
+                      Protect your account with Google Authenticator, Microsoft Authenticator, or Authy. Requires a 6-digit code on every login.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShow2FAModal(true)}
+                    className="shrink-0 px-3.5 py-1.5 rounded-xl bg-[var(--c-primary)] hover:bg-[var(--c-primary-hover)] text-[var(--c-text)] font-semibold text-xs shadow-sm transition cursor-pointer"
+                  >
+                    {user?.twoFactor?.enabled ? 'Manage 2FA' : 'Configure'}
+                  </button>
+                </div>
+              </div>
+
               {/* Workspace Preferences Section */}
               <div className="p-4 rounded-2xl bg-[var(--c-canvas-80)] border border-[var(--c-line-50)] space-y-3">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--c-text-2)] block">
@@ -864,6 +904,12 @@ const Account = () => {
           )}
         </div>
       </div>
+
+      {/* 2FA Configuration & Management Modal */}
+      <TwoFactorModal
+        isOpen={show2FAModal}
+        onClose={() => setShow2FAModal(false)}
+      />
     </div>
   );
 };

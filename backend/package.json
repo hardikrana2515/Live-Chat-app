@@ -26,6 +26,8 @@
     "multer": "^2.0.1",
     "nodemailer": "^10.2.1",
     "nodemon": "^3.1.14",
+    "otplib": "^13.5.0",
+    "qrcode": "^1.5.4",
     "socket.io": "^4.8.1"
   }
 }
