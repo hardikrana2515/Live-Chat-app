@@ -4,6 +4,7 @@ import { TbLogout2 } from 'react-icons/tb';
 import { IoCloseSharp } from 'react-icons/io5';
 import { FiAlertTriangle, FiLoader } from 'react-icons/fi';
 import { toast } from 'react-toastify';
+import { getSafeMediaUrl } from '../contexts/Api.js';
 
 const LogoutModal = () => {
   const { user, logout, logoutModal, setLogoutModal } = useContext(userContext);
@@ -42,11 +43,7 @@ const LogoutModal = () => {
     }
   };
 
-  const avatarSrc = user?.avtar?.startsWith('data:image')
-    ? user.avtar
-    : user?.avtar
-    ? `http://localhost:4000${user.avtar}`
-    : '/avtar.png';
+  const avatarSrc = getSafeMediaUrl(user?.avtar, '/avtar.png');
 
   const displayName = user?.name || user?.userName || 'User';
   const displayHandle = user?.userName

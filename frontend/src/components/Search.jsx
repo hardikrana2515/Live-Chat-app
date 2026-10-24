@@ -7,6 +7,7 @@ import userContext from '../contexts/UserContext/userContext';
 import chatContext from '../contexts/ChatContext/chatcontext';
 import SocketContext from '../contexts/Socket.io.Context/socket.Context';
 import Loader from './Loader';
+import { getSafeMediaUrl } from '../contexts/Api.js';
 
 const Search = () => {
   const { loading, Alluser, setSearchUser, searchUser, sendRequest } = useContext(userContext);
@@ -171,13 +172,7 @@ const Search = () => {
               >
                 <div className="flex items-center gap-2.5 flex-1 overflow-hidden">
                   <img
-                    src={
-                      u.avtar?.startsWith('data:image')
-                        ? u.avtar
-                        : u.avtar
-                          ? `http://localhost:4000${u.avtar}`
-                          : '/avtar.png'
-                    }
+                    src={getSafeMediaUrl(u.avtar, '/avtar.png')}
                     alt={u.userName}
                     className="w-9 h-9 rounded-full object-cover border border-[var(--c-line)] shrink-0"
                   />

@@ -6,7 +6,7 @@ import { useState, useContext, useEffect } from "react";
 import chatContext from "../contexts/ChatContext/chatcontext";
 import Message from "./Message";
 import SocketContext from '../contexts/Socket.io.Context/socket.Context.js'
-import API, { getApiBaseUrl } from '../contexts/Api.js';
+import API, { getApiBaseUrl, getSafeMediaUrl } from '../contexts/Api.js';
 import TypingIndicator from './TypingIndicator';
 import { IoVideocam, IoCall } from "react-icons/io5";
 
@@ -77,14 +77,8 @@ const ChatBox = ({ onStartCall }) => {
                         <img
                             src={
                                 selectedchat.isGroup
-                                    ? selectedchat.groupIcon
-                                        ? `${getApiBaseUrl()}${selectedchat.groupIcon}`
-                                        : "/group.png"
-                                    : getOtherUser(user, selectedchat.members)?.avtar?.startsWith("data:image")
-                                        ? getOtherUser(user, selectedchat.members).avtar
-                                        : getOtherUser(user, selectedchat.members)?.avtar
-                                            ? `${getApiBaseUrl()}${getOtherUser(user, selectedchat.members).avtar}`
-                                            : "/avtar.png"
+                                    ? getSafeMediaUrl(selectedchat.groupIcon, "/group.png")
+                                    : getSafeMediaUrl(getOtherUser(user, selectedchat.members)?.avtar, "/avtar.png")
                             }
                             alt={
                                 selectedchat.isGroup

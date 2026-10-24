@@ -4,6 +4,7 @@ import chatContext from '../contexts/ChatContext/chatcontext';
 import SocketContext from '../contexts/Socket.io.Context/socket.Context';
 import { registerChat, ensureChatKey } from '../utils/cryptoKeys';
 import { TiTick, TiTimes } from "react-icons/ti";
+import { getSafeMediaUrl } from '../contexts/Api.js';
 
 const Requests = () => {
     const { getFriendRequests, friendRequests, acceptRequest, refreshUser } = useContext(userContext);
@@ -50,11 +51,7 @@ const Requests = () => {
                     <div key={req._id} className="flex items-center justify-between bg-[var(--c-raised)] p-2 rounded-md">
                         <div className="flex items-center gap-2">
                             <img
-                                src={
-                                    req.sender.avtar?.startsWith('data:image')
-                                        ? req.sender.avtar
-                                        : `http://localhost:4000${req.sender.avtar}`
-                                }
+                                src={getSafeMediaUrl(req.sender.avtar, '/avtar.png')}
                                 alt={req.sender.userName}
                                 className="w-8 h-8 rounded-full object-cover"
                             />

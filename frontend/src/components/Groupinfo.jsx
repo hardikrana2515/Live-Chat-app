@@ -2,7 +2,7 @@ import React, { useContext } from 'react';
 import { IoCall, IoCloseSharp, IoMail } from "react-icons/io5";
 import { LuCrown } from "react-icons/lu";
 import chatContext from '../contexts/ChatContext/chatcontext';
-import { getApiBaseUrl } from '../contexts/Api.js';
+import { getApiBaseUrl, getSafeMediaUrl } from '../contexts/Api.js';
 
 const Groupinfo = () => {
     const { setChatmodal, selectedchat, user } = useContext(chatContext);
@@ -35,12 +35,8 @@ const Groupinfo = () => {
                     <img
                         src={
                             selectedchat.isGroup
-                                ? (selectedchat.groupIcon ? `${getApiBaseUrl()}${selectedchat.groupIcon}` : "/group.png")
-                                : (otherUser?.avtar?.startsWith('data:image')
-                                    ? otherUser.avtar
-                                    : otherUser?.avtar
-                                    ? `${getApiBaseUrl()}${otherUser.avtar}`
-                                    : "/avtar.png")
+                                ? getSafeMediaUrl(selectedchat.groupIcon, "/group.png")
+                                : getSafeMediaUrl(otherUser?.avtar, "/avtar.png")
                         }
                         alt={selectedchat.isGroup ? selectedchat.chatname : otherUser?.userName}
                         className="w-20 h-20 rounded-full object-cover border-4 border-[var(--c-primary-50)]"
@@ -118,11 +114,7 @@ const Groupinfo = () => {
                                             className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-[var(--c-panel)] transition-all duration-200"
                                         >
                                             <img
-                                                src={
-                                                    member?.avtar?.startsWith("data:image") || member?.avtar?.startsWith("http")
-                                                        ? member.avtar
-                                                        : (member?.avtar ? `http://localhost:4000${member.avtar}` : "/user.png")
-                                                }
+                                                src={getSafeMediaUrl(member?.avtar, "/user.png")}
                                                 alt={member.name}
                                                 className="w-10 h-10 rounded-full object-cover shrink-0 border border-[var(--c-line)]"
                                             />

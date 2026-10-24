@@ -7,6 +7,7 @@ import { BiLoaderAlt } from "react-icons/bi"
 import chatContext from '../contexts/ChatContext/chatcontext'
 import { toast } from 'react-toastify'
 import Addmember from './Addmember'
+import { getSafeMediaUrl } from '../contexts/Api.js'
 
 const GroupSetting = () => {
     const {
@@ -196,12 +197,8 @@ const GroupSetting = () => {
     const avatarSrc = imgPreview
         ? imgPreview
         : selectedchat?.isGroup
-            ? (selectedchat?.groupIcon
-                ? (selectedchat.groupIcon.startsWith('http') ? selectedchat.groupIcon : `http://localhost:4000${selectedchat.groupIcon}`)
-                : "/group.png")
-            : (otherUser?.avtar?.startsWith('data:image') || otherUser?.avtar?.startsWith('http')
-                ? otherUser.avtar
-                : (otherUser?.avtar ? `http://localhost:4000${otherUser.avtar}` : "/user.png"))
+            ? getSafeMediaUrl(selectedchat?.groupIcon, "/group.png")
+            : getSafeMediaUrl(otherUser?.avtar, "/user.png");
 
     const hasNameChanged = Boolean(newName.trim() && newName.trim() !== selectedchat?.chatname && newName.trim().length >= 2)
 
@@ -418,11 +415,7 @@ const GroupSetting = () => {
                                                 {/* Left: Avatar + Names + Badges */}
                                                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                                     <img
-                                                        src={
-                                                            member?.avtar?.startsWith("data:image") || member?.avtar?.startsWith("http")
-                                                                ? member.avtar
-                                                                : (member?.avtar ? `http://localhost:4000${member.avtar}` : "/user.png")
-                                                        }
+                                                        src={getSafeMediaUrl(member?.avtar, "/user.png")}
                                                         alt={member.name || "Member"}
                                                         className="w-9 h-9 rounded-full object-cover shrink-0 border border-[var(--c-line)]"
                                                     />

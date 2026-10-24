@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { IoCloseSharp, IoSearch, IoPerson } from 'react-icons/io5';
 import chatContext from '../contexts/ChatContext/chatcontext';
-import API from '../contexts/Api';
+import API, { getSafeMediaUrl } from '../contexts/Api';
 
 const ShareContactModal = ({ onClose, onShare }) => {
     const { chat, user } = useContext(chatContext);
@@ -123,7 +123,7 @@ const ShareContactModal = ({ onClose, onShare }) => {
                                     <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-[var(--c-line)] bg-[var(--c-surface)] flex items-center justify-center">
                                         {contact.avtar ? (
                                             <img
-                                                src={contact.avtar.startsWith('data:') ? contact.avtar : `http://localhost:4000${contact.avtar}`}
+                                                src={getSafeMediaUrl(contact.avtar, '/avtar.png')}
                                                 alt={contact.name}
                                                 className="w-full h-full object-cover"
                                             />

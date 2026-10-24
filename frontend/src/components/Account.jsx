@@ -18,7 +18,7 @@ import {
   FiSmile
 } from "react-icons/fi";
 import userContext from '../contexts/UserContext/userContext';
-import { getApiBaseUrl } from '../contexts/Api.js';
+import { getApiBaseUrl, getSafeMediaUrl } from '../contexts/Api.js';
 import { toast } from 'react-toastify';
 import TwoFactorModal from './TwoFactorModal.jsx';
 import {
@@ -203,13 +203,7 @@ const Account = () => {
     setLogoutModal(true);
   };
 
-  const avatarSrc = imgPreview || (
-    user?.avtar?.startsWith('data:image')
-      ? user.avtar
-      : user?.avtar
-        ? `${getApiBaseUrl()}${user.avtar}`
-        : '/avtar.png'
-  );
+  const avatarSrc = imgPreview || getSafeMediaUrl(user?.avtar, '/avtar.png');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--c-overlay)] backdrop-blur-md px-4 py-6 transition-all duration-300">

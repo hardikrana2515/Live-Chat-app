@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs';
+import path from 'path';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dchfzng55',
@@ -19,11 +20,13 @@ export const uploadToCloudinary = async (localFilePath, folder = 'talkyy', resou
 
   try {
     const isRaw = localFilePath.endsWith('.enc') || localFilePath.endsWith('.bin') || resourceType === 'raw';
+    const filename = path.basename(localFilePath);
     const result = await cloudinary.uploader.upload(localFilePath, {
       folder: folder,
       resource_type: isRaw ? 'raw' : resourceType,
+      public_id: filename,
       use_filename: true,
-      unique_filename: true,
+      unique_filename: false,
     });
 
     // Clean up local disk file after successful Cloudinary upload

@@ -1,6 +1,6 @@
 import { useState, useContext, useEffect } from 'react';
 import userContext from '../contexts/UserContext/userContext';
-import { getApiBaseUrl } from '../contexts/Api.js';
+import { getApiBaseUrl, getSafeMediaUrl } from '../contexts/Api.js';
 
 const Profile = () => {
   const { GetUser, user, setCard } = useContext(userContext);
@@ -68,13 +68,7 @@ const Profile = () => {
       {/* Avatar with Status */}
       <div className="relative shrink-0">
         <img
-          src={
-            user.avtar?.startsWith('data:image')
-              ? user.avtar
-              : user.avtar
-              ? `${getApiBaseUrl()}${user.avtar}`
-              : '/avtar.png'
-          }
+          src={getSafeMediaUrl(user.avtar, '/avtar.png')}
           alt={user.userName}
           className="w-10 h-10 rounded-full object-cover border border-[var(--c-line)] group-hover:border-[var(--c-primary-50)] transition-colors shadow-sm"
         />

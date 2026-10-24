@@ -10,7 +10,7 @@ import chatContext from "../contexts/ChatContext/chatcontext";
 import userContext from '../contexts/UserContext/userContext';
 import SocketContext from '../contexts/Socket.io.Context/socket.Context';
 import { registerChat, ensureChatKey } from '../utils/cryptoKeys';
-import { getApiBaseUrl } from '../contexts/Api.js';
+import { getApiBaseUrl, getSafeMediaUrl } from '../contexts/Api.js';
 import Chat, { isChatUnread } from "./Chat";
 
 const ThemeToggle = () => {
@@ -145,13 +145,7 @@ const Sidebar = () => {
             >
             <div className="relative shrink-0">
               <img
-                src={
-                  user?.avtar?.startsWith('data:image')
-                    ? user.avtar
-                    : user?.avtar
-                    ? `${getApiBaseUrl()}${user.avtar}`
-                    : '/avtar.png'
-                }
+                src={getSafeMediaUrl(user?.avtar, '/avtar.png')}
                 alt={user?.name || 'You'}
                 className="w-10 h-10 rounded-full object-cover avatar-ring"
               />
@@ -303,11 +297,7 @@ const Sidebar = () => {
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <img
-                      src={
-                        req.sender.avtar?.startsWith('data:image')
-                          ? req.sender.avtar
-                          : `http://localhost:4000${req.sender.avtar}`
-                      }
+                      src={getSafeMediaUrl(req.sender.avtar, '/avtar.png')}
                       alt={req.sender.name || req.sender.userName}
                       className="w-7 h-7 rounded-full object-cover shrink-0"
                     />

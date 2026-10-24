@@ -198,50 +198,58 @@ export const decryptFile = async (url, chatId) => {
         if (token && !isExternal) headers['Authorization'] = `Bearer ${token}`;
         const fetchOptions = isExternal ? {} : { credentials: 'include', headers };
 
-        // Non-encrypted attachments: fetch with authentication and return safe blob URL
-        if (!url.endsWith('.enc')) {
-            if (url.startsWith('http')) {
-                const response = await fetch(url, fetchOptions);
-                if (response.ok) {
-                    const blob = await response.blob();
-                    return URL.createObjectURL(blob);
-                }
-            }
-            return url;
+        const response = await fetch(url, fetchOptions);
+        if (!response.ok) {
+            return { url, mimeType: '' };
         }
 
-        const response = await fetch(url, fetchOptions);
-        const ciphertext = await response.text();
+        const text = await response.text();
 
-        let originalDataUrl;
-        if (ciphertext.startsWith(E2_PREFIX)) {
+        // Check if content is E2EE encrypted or legacy ciphertext
+        if (text.startsWith(E2_PREFIX)) {
             let key = getCachedChatKey(chatId);
             if (!key) key = await ensureChatKey(chatId);
-            if (!key) return url;
-            const body = ciphertext.slice(E2_PREFIX.length);
+            if (!key) return { url, mimeType: '' };
+
+            const body = text.slice(E2_PREFIX.length);
+            let originalDataUrl;
             try {
                 originalDataUrl = await runWorkerOp('decrypt', body, keySpecFor(key));
             } catch {
                 originalDataUrl = e2DecryptBody(body, key);
             }
-        } else {
-            // Legacy read-only fallback
-            try {
-                originalDataUrl = await runWorkerOp('decrypt', ciphertext, LEGACY_READ_SPEC);
-            } catch {
-                originalDataUrl = syncDecrypt(ciphertext, LEGACY_KEY);
+
+            if (originalDataUrl && originalDataUrl.startsWith("data:")) {
+                const mimeMatch = originalDataUrl.match(/^data:([^;]+);/);
+                const mimeType = mimeMatch ? mimeMatch[1].toLowerCase() : '';
+                const res = await fetch(originalDataUrl);
+                const blob = await res.blob();
+                return { url: URL.createObjectURL(blob), mimeType };
             }
+            return { url, mimeType: '' };
+        } else if (text.startsWith("U2FsdGVkX1")) {
+            let originalDataUrl;
+            try {
+                originalDataUrl = await runWorkerOp('decrypt', text, LEGACY_READ_SPEC);
+            } catch {
+                originalDataUrl = syncDecrypt(text, LEGACY_KEY);
+            }
+            if (originalDataUrl && originalDataUrl.startsWith("data:")) {
+                const mimeMatch = originalDataUrl.match(/^data:([^;]+);/);
+                const mimeType = mimeMatch ? mimeMatch[1].toLowerCase() : '';
+                const res = await fetch(originalDataUrl);
+                const blob = await res.blob();
+                return { url: URL.createObjectURL(blob), mimeType };
+            }
+            return { url, mimeType: '' };
         }
 
-        if (!originalDataUrl || !originalDataUrl.startsWith("data:")) {
-            return url;
-        }
-
-        const res = await fetch(originalDataUrl);
-        const blob = await res.blob();
-        return URL.createObjectURL(blob);
+        // Non-encrypted file: re-fetch or convert to safe blob
+        const blobRes = await fetch(url, fetchOptions);
+        const rawBlob = await blobRes.blob();
+        return { url: URL.createObjectURL(rawBlob), mimeType: rawBlob.type || '' };
     } catch (e) {
         console.error("[E2EE] Decryption failed:", e);
-        return url;
+        return { url, mimeType: '' };
     }
 };

@@ -3,29 +3,24 @@ import { decryptFile } from '../utils/EncryptionUtils';
 import AudioMessage from './AudioMessage'; // Reuse your audio player
 
 const EncryptedAttachment = ({ url, type, alt, chatId }) => {
-    const [decryptedUrl, setDecryptedUrl] = useState(null);
+    const [attachment, setAttachment] = useState({ url: null, mimeType: '' });
     const [loading, setLoading] = useState(true);
-    // Track the blob URL in a ref: the cleanup closure would otherwise capture
-    // the `decryptedUrl` state from the first render (always null) and
-    // URL.revokeObjectURL would never run — leaking blob URLs into memory. (Issue 1.5)
     const blobUrlRef = useRef(null);
 
     useEffect(() => {
         let isMounted = true;
 
         const processFile = async () => {
-            // If local localhost url, we need to decrypt
-            // If it's a blob (local preview), it might not need decryption if checked earlier, 
-            // but here we assume 'url' is from server (http...) which is encrypted text file.
             const res = await decryptFile(url, chatId);
+            const targetUrl = (res && typeof res === 'object') ? res.url : res;
+            const targetMime = (res && typeof res === 'object') ? (res.mimeType || '') : '';
+
             if (isMounted) {
-                blobUrlRef.current = (typeof res === 'string' && res.startsWith('blob:')) ? res : null;
-                setDecryptedUrl(res);
+                blobUrlRef.current = (typeof targetUrl === 'string' && targetUrl.startsWith('blob:')) ? targetUrl : null;
+                setAttachment({ url: targetUrl, mimeType: targetMime });
                 setLoading(false);
-            } else if (typeof res === 'string' && res.startsWith('blob:')) {
-                // Unmounted while decrypting (e.g. StrictMode double-invoke) —
-                // revoke immediately so the blob never leaks.
-                URL.revokeObjectURL(res);
+            } else if (typeof targetUrl === 'string' && targetUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(targetUrl);
             }
         };
 
@@ -42,34 +37,42 @@ const EncryptedAttachment = ({ url, type, alt, chatId }) => {
 
     if (loading) return <div className="animate-pulse bg-[var(--c-raised)] h-32 w-32 rounded flex items-center justify-center text-xs text-[var(--c-text-2)]">Decrypting...</div>;
 
-    if (!type) return null;
+    const decryptedUrl = attachment.url;
+    if (!decryptedUrl) return null;
 
-    const fileType = type.toLowerCase();
+    const mime = (attachment.mimeType || '').toLowerCase();
+    const fileType = (type || '').toLowerCase();
 
-    const isAudio = ['mp3', 'wav', 'aac', 'm4a', 'ogg'].includes(fileType) ||
+    const isImage = mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(fileType);
+    const isAudio = mime.startsWith('audio/') || ['mp3', 'wav', 'aac', 'm4a', 'ogg'].includes(fileType) ||
                     (fileType === 'webm' && (url.toLowerCase().includes('voice') || url.toLowerCase().includes('audio')));
+    const isVideo = mime.startsWith('video/') || ['mp4', 'webm', 'mov', 'mkv'].includes(fileType);
+    const isPdf = mime === 'application/pdf' || fileType === 'pdf';
 
     if (isAudio) {
         return (
             <AudioMessage src={decryptedUrl} />
         );
-    } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType)) {
+    } else if (isImage) {
         return (
-            <img
-                src={decryptedUrl}
-                alt={alt || "Encrypted Media"}
-                loading="lazy"
-                className="rounded-md max-w-full max-h-64 object-contain"
-            />
+            <div className="relative group overflow-hidden rounded-md max-w-full">
+                <img
+                    src={decryptedUrl}
+                    alt={alt || "Encrypted Image"}
+                    loading="lazy"
+                    className="rounded-md max-w-full max-h-72 object-contain cursor-pointer transition-transform duration-200 hover:scale-[1.02]"
+                    onClick={() => window.open(decryptedUrl, '_blank')}
+                />
+            </div>
         );
-    } else if (['mp4', 'webm', 'mov', 'mkv'].includes(fileType)) {
+    } else if (isVideo) {
         return (
             <video controls className="rounded-md max-w-full max-h-64">
-                <source src={decryptedUrl} type={`video/${fileType}`} />
+                <source src={decryptedUrl} type={mime || `video/${fileType}`} />
                 Your browser does not support the video tag.
             </video>
         );
-    } else if (fileType === 'pdf') {
+    } else if (isPdf) {
         return (
             <a
                 href={decryptedUrl}
@@ -85,7 +88,7 @@ const EncryptedAttachment = ({ url, type, alt, chatId }) => {
             <a
                 href={decryptedUrl}
                 download
-                className="underline text-[var(--c-info)]"
+                className="underline text-[var(--c-info)] flex items-center gap-2"
             >
                 📁 Download File (Decrypted)
             </a>

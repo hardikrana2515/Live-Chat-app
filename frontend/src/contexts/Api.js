@@ -37,4 +37,19 @@ export const getApiBaseUrl = () => {
   return apiUrl.replace(/\/api\/ChatApp\/?$/, "");
 };
 
+export const getSafeMediaUrl = (src, defaultFallback = "") => {
+  if (!src || typeof src !== "string") return defaultFallback;
+  if (
+    src.startsWith("data:") ||
+    src.startsWith("blob:") ||
+    src.startsWith("http://") ||
+    src.startsWith("https://")
+  ) {
+    return src;
+  }
+  const base = getApiBaseUrl();
+  const cleanPath = src.startsWith("/") ? src : `/${src}`;
+  return `${base}${cleanPath}`;
+};
+
 export default API;

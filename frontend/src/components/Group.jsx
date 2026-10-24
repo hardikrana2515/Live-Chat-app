@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { IoCloseSharp } from "react-icons/io5";
 import { MdOutlineArrowBack } from "react-icons/md";
 import chatContext from '../contexts/ChatContext/chatcontext'
+import { getSafeMediaUrl } from '../contexts/Api.js'
 
 const Group = () => {
     const { setGroupchat, CreateGroup,
@@ -127,7 +128,7 @@ const Group = () => {
                             className="flex items-center w-full gap-4 p-2 rounded-md hover:bg-[var(--c-hover)] cursor-pointer transition-all duration-200"
                         >
                             <img
-                                src={u.avtar?.startsWith('data:image') ? u.avtar : `http://localhost:4000${u.avtar}`}
+                                src={getSafeMediaUrl(u.avtar, '/avtar.png')}
                                 alt={u.userName}
                                 className="w-12 h-12 rounded-full object-cover"
                             />
@@ -147,7 +148,7 @@ const Group = () => {
                             {selectedMembers.map((u) => (
                                 <div key={u._id} className="flex items-center gap-2 px-3 py-1 bg-[var(--c-surface)] rounded-md">
                                     <img
-                                        src={u.avtar?.startsWith('data:image') ? u.avtar : `http://localhost:4000${u.avtar}`}
+                                        src={getSafeMediaUrl(u.avtar, '/avtar.png')}
                                         alt={u.userName}
                                         className="w-6 h-6 rounded-full object-cover"
                                     />
