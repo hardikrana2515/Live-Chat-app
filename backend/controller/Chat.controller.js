@@ -42,12 +42,30 @@ const AccessChat = AsyncHandler(async (req, res) => {
               ));
   }
 
-  let isChat = await ChatRoom.find({
+  // Verify target user exists and check blocking (Audit M1)
+  const targetUser = await User.findById(UserId).select("name userName avtar blockedUsers");
+  if (!targetUser) {
+    return res.status(404).json(new ApiResponse(404, null, "Target user not found"));
+  }
+
+  const currentUser = await User.findById(req.user._id).select("blockedUsers");
+  const isBlockedByTarget = (targetUser.blockedUsers || []).some(id => String(id) === String(req.user._id));
+  const hasBlockedTarget = (currentUser?.blockedUsers || []).some(id => String(id) === String(UserId));
+
+  if (isBlockedByTarget) {
+    return res.status(403).json(new ApiResponse(403, null, "You have been blocked by this user"));
+  }
+  if (hasBlockedTarget) {
+    return res.status(403).json(new ApiResponse(403, null, "You have blocked this user. Unblock first."));
+  }
+
+  let isChat = await ChatRoom.findOne({
     isGroup: false,
-    members: { $all: [req.user._id, UserId] },
+    members: { $all: [req.user._id, UserId], $size: 2 },
   })
     .populate("members", "-password")
     .populate("admins", "-password")
+    .populate("creator", "-password")
     .populate({
       path: "lastMessage",
       populate: {
@@ -56,27 +74,42 @@ const AccessChat = AsyncHandler(async (req, res) => {
       },
     });
 
-  if (isChat.length > 0) {
-    res.status(200).json(new ApiResponse(200, isChat[0], "Get the Chat ....."));
-  } else {
-    let chat = {
+  if (isChat) {
+    return res.status(200).json(new ApiResponse(200, isChat, "Get the Chat ....."));
+  }
+
+  try {
+    const createdChat = await ChatRoom.create({
       isGroup: false,
       members: [req.user._id, UserId],
-    };
-
-    const Createdchat = await ChatRoom.create(chat);
-    const FullChat = await ChatRoom.findOne({ _id: Createdchat._id })
-      .populate("members","-password")
+      creator: req.user._id,
+    });
+    const fullChat = await ChatRoom.findById(createdChat._id)
+      .populate("members", "-password")
       .populate("creator", "-password");
 
     const io = req.app.get('io');
     if (io) {
-      io.to(UserId.toString()).emit("conversation created", FullChat);
+      io.to(UserId.toString()).emit("conversation created", fullChat);
     }
 
-    res
+    return res
       .status(200)
-      .json(new ApiResponse(200, FullChat, "chat created !!!hureee .."));
+      .json(new ApiResponse(200, fullChat, "chat created !!!hureee .."));
+  } catch (err) {
+    // If concurrent creation raced, return existing chat (Audit M2)
+    const existingChat = await ChatRoom.findOne({
+      isGroup: false,
+      members: { $all: [req.user._id, UserId], $size: 2 },
+    })
+      .populate("members", "-password")
+      .populate("creator", "-password")
+      .populate("lastMessage");
+
+    if (existingChat) {
+      return res.status(200).json(new ApiResponse(200, existingChat, "Get the Chat ....."));
+    }
+    throw err;
   }
 });
 
@@ -92,30 +125,59 @@ const fetchChat = AsyncHandler(async (req, res) => {
 });
 
 const CreateGroup = AsyncHandler(async (req, res) => {
-  let { members, chatname, groupIcon } = req.body;
+  let { members, chatname } = req.body;
    
-  groupIcon = ""
+  let groupIcon = "";
   if (req.file) {
-  groupIcon = `/Image/${req.file.filename}`;
-}
+    groupIcon = `/Image/${req.file.filename}`;
+  }
 
   if (typeof members === "string") {
-    members = JSON.parse(members);
+    try {
+      members = JSON.parse(members);
+    } catch {
+      return res.status(400).json(new ApiResponse(400, null, "Invalid members format."));
+    }
   }
 
-  if (!Array.isArray(members) || members.length < 2 || !chatname) {
-    // throw new ApiError(401, "Group name and at least 2 member required.");
-    return res.status(401)
-              .json(new ApiResponse(401,null,"Group name and at least 2 member required."
-              ))
+  if (!Array.isArray(members) || !chatname || chatname.trim().length === 0) {
+    return res.status(400).json(new ApiResponse(400, null, "Group name and members are required."));
   }
-  
-  members.push(req.user._id);
+
+  if (chatname.trim().length > 100) {
+    return res.status(400).json(new ApiResponse(400, null, "Group name cannot exceed 100 characters."));
+  }
+
+  // Deduplicate and filter valid member IDs (Audit M1 & M2)
+  const uniqueCandidateIds = new Set(
+    members
+      .filter((id) => id && mongoose.isValidObjectId(id))
+      .map((id) => id.toString())
+  );
+  // Creator is added exactly once
+  uniqueCandidateIds.add(req.user._id.toString());
+
+  if (uniqueCandidateIds.size < 2) {
+    return res.status(400).json(new ApiResponse(400, null, "At least 2 distinct members are required to form a group."));
+  }
+
+  if (uniqueCandidateIds.size > 100) {
+    return res.status(400).json(new ApiResponse(400, null, "Group size cannot exceed 100 members."));
+  }
+
+  // Verify all member IDs exist in database (Audit M1)
+  const candidateList = Array.from(uniqueCandidateIds);
+  const existingUsers = await User.find({ _id: { $in: candidateList } }).select("_id");
+  if (existingUsers.length !== candidateList.length) {
+    return res.status(400).json(new ApiResponse(400, null, "One or more group member accounts do not exist."));
+  }
+
+  const finalMembers = existingUsers.map((u) => u._id);
 
   const Group = await ChatRoom.create({
-    chatname,
+    chatname: chatname.trim(),
     isGroup: true,
-    members,
+    members: finalMembers,
     admins: [req.user._id],
     creator: req.user._id,
     groupIcon
@@ -202,6 +264,11 @@ const RemovefromGroup = AsyncHandler(async (req, res) => {
               .json(new ApiResponse(404, null, "Chat not found"));
   }
 
+  if (!Chat.isGroup) {
+    return res.status(400)
+              .json(new ApiResponse(400, null, "Cannot perform group actions on a direct chat"));
+  }
+
   if (!Chat.admins.some((id) => id.toString() === req.user._id.toString())) {
     return res.status(403)
               .json(new ApiResponse(403, null, "Only admins can remove members."));
@@ -265,6 +332,11 @@ const addtoGroup = AsyncHandler(async (req, res) => {
               ))
   }
 
+  if (!Chat.isGroup) {
+    return res.status(400)
+              .json(new ApiResponse(400, null, "Cannot perform group actions on a direct chat"));
+  }
+
   const isUserAdmin = Chat.admins.some((id) => (id?._id || id).toString() === req.user._id.toString()) ||
     (Chat.creator && (Chat.creator?._id || Chat.creator).toString() === req.user._id.toString());
 
@@ -291,6 +363,15 @@ const addtoGroup = AsyncHandler(async (req, res) => {
      return res.status(400)
               .json(new ApiResponse(400,null,"All users are already groupmembers !!!!"
               ))
+  }
+
+  if ((Chat.members || []).length + newMembers.length > 100) {
+    return res.status(400).json(new ApiResponse(400, null, "Group size cannot exceed 100 members"));
+  }
+
+  const validNewUsers = await User.find({ _id: { $in: newMembers } }).select("_id");
+  if (validNewUsers.length !== newMembers.length) {
+    return res.status(400).json(new ApiResponse(400, null, "One or more user accounts do not exist"));
   }
 
   Chat.members.push(...newMembers);
@@ -326,6 +407,11 @@ const makeAdmin = AsyncHandler(async (req, res) => {
      return res.status(404)
               .json(new ApiResponse(404,null,"Chat not found"
               ))
+  }
+
+  if (!Chat.isGroup) {
+    return res.status(400)
+              .json(new ApiResponse(400, null, "Cannot perform group actions on a direct chat"));
   }
 
   const isUserAdmin = Chat.admins.some((id) => (id?._id || id).toString() === req.user._id.toString()) ||
@@ -389,6 +475,11 @@ const RemoveAdmin = AsyncHandler(async (req, res) => {
      return res.status(404)
               .json(new ApiResponse(404,null,"Chat not Found"
               ))
+  }
+
+  if (!Chat.isGroup) {
+    return res.status(400)
+              .json(new ApiResponse(400, null, "Cannot perform group actions on a direct chat"));
   }
 
   const isUserAdmin = Chat.admins.some((id) => (id?._id || id).toString() === req.user._id.toString()) ||
@@ -466,6 +557,20 @@ const LeaveGroup = AsyncHandler(async (req, res) => {
     return res.status(404)
               .json(new ApiResponse(404, null, "Chat not found."));
   }
+
+  if (!Chat.isGroup) {
+    return res.status(400)
+              .json(new ApiResponse(400, null, "Cannot leave a direct chat."));
+  }
+
+  const isMember = (Chat.members || []).some(
+    (id) => id.toString() === req.user._id.toString()
+  );
+  if (!isMember) {
+    return res.status(400)
+              .json(new ApiResponse(400, null, "You are not a member of this group."));
+  }
+
   if (Chat.creator && Chat.creator.toString() === req.user._id.toString()) {
     return res.status(405)
               .json(new ApiResponse(405, null, "Creator cannot leave the group. Delete it instead."));
@@ -511,6 +616,11 @@ const DeleteGroup = AsyncHandler(async (req, res) => {
   if (!Chat) {
     return res.status(404)
               .json(new ApiResponse(404, null, "Chat not found."));
+  }
+
+  if (!Chat.isGroup) {
+    return res.status(400)
+              .json(new ApiResponse(400, null, "Cannot perform group actions on a direct chat"));
   }
   const isMember = Chat.members && Chat.members.some(
     (memberId) => memberId.toString() === req.user._id.toString()
@@ -561,6 +671,11 @@ const UploadGroupIcon = AsyncHandler(async (req, res) => {
               .json(new ApiResponse(404, null, "Chat not found!"));
   }
 
+  if (!chat.isGroup) {
+    return res.status(400)
+              .json(new ApiResponse(400, null, "Cannot change groupIcon of a direct chat!"));
+  }
+
   if (!chat.admins.some((id) => id.toString() === req.user._id.toString())) {
     return res.status(403)
               .json(new ApiResponse(403, null, "Only admins can change groupIcon!"));
@@ -605,6 +720,15 @@ const UpdateGroupKeys = AsyncHandler(async (req, res) => {
     return res.status(403).json(new ApiResponse(403, null, "Only group members can update keys"));
   }
 
+  const isAdminOrCreator =
+    (chat.admins || []).some((a) => a.toString() === req.user._id.toString()) ||
+    (chat.creator && chat.creator.toString() === req.user._id.toString());
+
+  // Full key replacement (rotation) requires group admin or creator privilege (Audit H6)
+  if (!merge && !isAdminOrCreator) {
+    return res.status(403).json(new ApiResponse(403, null, "Only group admins can rotate the entire key map"));
+  }
+
   if (groupKeys === null || groupKeys === undefined) {
     return res.status(400).json(new ApiResponse(400, null, "groupKeys is required"));
   }
@@ -612,12 +736,15 @@ const UpdateGroupKeys = AsyncHandler(async (req, res) => {
     return res.status(400).json(new ApiResponse(400, null, "groupKeys must be an object"));
   }
 
-  // Validate shape: { userId: { by, byKey, key, targetKey } } — all strings, bounded size
+  // Validate shape: only allow wraps for actual group members, bounded size, and verified author (Audit H6)
+  const validMemberSet = new Set((chat.members || []).map((m) => m.toString()));
   const clean = {};
   for (const [uid, wrap] of Object.entries(groupKeys)) {
+    if (!validMemberSet.has(uid)) continue; // Drop arbitrary non-member IDs
     if (!wrap || typeof wrap !== "object") continue;
     const { by, byKey, key, targetKey } = wrap;
     if (typeof by !== "string" || typeof byKey !== "string" || typeof key !== "string") continue;
+    if (by !== req.user._id.toString()) continue; // Cannot forge wrap author
     if (byKey.length > 500 || key.length > 4000) continue;
     clean[uid] = {
       by,
@@ -625,6 +752,10 @@ const UpdateGroupKeys = AsyncHandler(async (req, res) => {
       key,
       ...(typeof targetKey === "string" && targetKey.length < 500 ? { targetKey } : {})
     };
+  }
+
+  if (Object.keys(clean).length === 0) {
+    return res.status(400).json(new ApiResponse(400, null, "No valid member key wraps provided"));
   }
 
   if (merge && chat.groupKeys && typeof chat.groupKeys === "object") {

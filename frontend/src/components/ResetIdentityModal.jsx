@@ -2,7 +2,6 @@ import React, { useState, useContext } from 'react';
 import userContext from '../contexts/UserContext/userContext';
 import { FiAlertTriangle, FiLock, FiLoader } from 'react-icons/fi';
 import { IoCloseSharp } from 'react-icons/io5';
-import { toast } from 'react-toastify';
 
 const ResetIdentityModal = () => {
   const { showResetModal, setShowResetModal, performIdentityReset, setShowRecoveryModal } =

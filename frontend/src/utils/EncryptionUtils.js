@@ -3,27 +3,19 @@ import { toast } from 'react-toastify';
 import { ensureChatKey, getCachedChatKey } from './cryptoKeys.js';
 
 // ---------------------------------------------------------------------------
-// Message/attachment encryption (Issue 3.2).
+// Message/attachment encryption (Audit C4 resolution).
 //
-// New ciphertext is encrypted with the per-conversation ECDH/group key from
-// cryptoKeys.js and prefixed with "E2:". Content without the prefix was
-// encrypted with the old bundled static key (legacy) and still decrypts so
-// existing history keeps working.
+// All new ciphertext is encrypted with the per-conversation ECDH/group key from
+// cryptoKeys.js, prefixed with "E2:", and protected with HMAC-SHA256 authenticated
+// integrity checking. Silent fallback to the legacy global key for NEW content
+// is strictly forbidden and disabled.
+// Old messages without "E2:" or with legacy formatting remain readable for migration.
 // ---------------------------------------------------------------------------
 
-// Legacy shared key — read-only migration path for old messages.
+// Legacy key — strictly READ-ONLY migration path for older stored messages.
 const LEGACY_KEY = "MY_SUPER_SECRET_CHAT_APP_KEY_V1";
 export const E2_PREFIX = "E2:";
 
-let warnedLegacy = false;
-const warnLegacyOnce = (reason) => {
-    if (warnedLegacy) return;
-    warnedLegacy = true;
-    console.warn(`[E2EE] Falling back to legacy encryption: ${reason}`);
-    toast.info("End-to-end keys aren't available for this chat yet — using legacy encryption");
-};
-
-const syncEncrypt = (text, key) => CryptoJS.AES.encrypt(text, key).toString();
 const syncDecrypt = (ciphertext, key) => {
     try {
         const bytes = CryptoJS.AES.decrypt(ciphertext, key);
@@ -33,22 +25,35 @@ const syncDecrypt = (ciphertext, key) => {
     }
 };
 
-// Per-conversation (raw AES-256 key) encryption carries its own random IV:
-// crypto-js only auto-derives an IV on the passphrase path, so raw keys must
-// pass one explicitly and transmit it. Format: "<ivB64>.<opensslBody>".
+// Per-conversation (raw AES-256 key) encryption carries random IV and HMAC-SHA256 tag.
+// Format: "<ivB64>.<opensslBody>.<hmacSha256>"
 const e2EncryptBody = (text, key) => {
     const iv = CryptoJS.lib.WordArray.random(16);
     const body = CryptoJS.AES.encrypt(text, key, { iv }).toString();
-    return `${CryptoJS.enc.Base64.stringify(iv)}.${body}`;
+    const ivB64 = CryptoJS.enc.Base64.stringify(iv);
+    const mac = CryptoJS.HmacSHA256(`${ivB64}.${body}`, key).toString();
+    return `${ivB64}.${body}.${mac}`;
 };
 
 const e2DecryptBody = (ivBody, key) => {
     try {
-        const dot = ivBody.indexOf('.');
-        if (dot < 1) return null;
-        const iv = CryptoJS.enc.Base64.parse(ivBody.slice(0, dot));
-        const body = ivBody.slice(dot + 1);
-        return CryptoJS.AES.decrypt(body, key, { iv }).toString(CryptoJS.enc.Utf8) || null;
+        const parts = ivBody.split('.');
+        if (parts.length === 3) {
+            const [ivB64, body, mac] = parts;
+            const expectedMac = CryptoJS.HmacSHA256(`${ivB64}.${body}`, key).toString();
+            if (mac !== expectedMac) {
+                console.warn("[E2EE] Ciphertext authentication check failed (HMAC mismatch) - potential tampering detected.");
+                return null;
+            }
+            const iv = CryptoJS.enc.Base64.parse(ivB64);
+            return CryptoJS.AES.decrypt(body, key, { iv }).toString(CryptoJS.enc.Utf8) || null;
+        } else if (parts.length === 2) {
+            // Backward-compatible 2-part format
+            const [ivB64, body] = parts;
+            const iv = CryptoJS.enc.Base64.parse(ivB64);
+            return CryptoJS.AES.decrypt(body, key, { iv }).toString(CryptoJS.enc.Utf8) || null;
+        }
+        return null;
     } catch {
         return null; // wrong key / corrupted ciphertext — never throws
     }
@@ -56,10 +61,6 @@ const e2DecryptBody = (ivBody, key) => {
 
 // ---------------------------------------------------------------------------
 // Web Worker pool: heavy AES work runs off the main thread (Issue 3.3).
-// The worker receives the key as { mode: 'raw' | 'pass', value } — 'raw'
-// carries a base64 AES-256 key (per-conversation), 'pass' a passphrase
-// (legacy fallback). A synchronous fallback keeps everything working if
-// Workers are unavailable.
 // ---------------------------------------------------------------------------
 let cryptoWorker = null;
 let workerSeq = 0;
@@ -78,8 +79,6 @@ const getCryptoWorker = () => {
             else pending.reject(new Error(error || 'Worker crypto failed'));
         };
         cryptoWorker.onerror = () => {
-            // Worker failed to build/run — reject everything in flight and
-            // disable it so future calls use the sync fallback.
             workerPending.forEach(({ reject }) => reject(new Error('Worker unavailable')));
             workerPending.clear();
             try { cryptoWorker.terminate(); } catch { /* ignore */ }
@@ -100,11 +99,10 @@ const runWorkerOp = (op, payload, key) => new Promise((resolve, reject) => {
 });
 
 const keySpecFor = (keyWA) => ({ mode: 'raw', value: CryptoJS.enc.Base64.stringify(keyWA) });
-const LEGACY_SPEC = { mode: 'pass', value: LEGACY_KEY };
+const LEGACY_READ_SPEC = { mode: 'pass', value: LEGACY_KEY };
 
 // ---------------------------------------------------------------------------
-// Text messages (sync decrypt — render paths call this during paint;
-// encrypt is async because it may need to derive the chat key first)
+// Text messages
 // ---------------------------------------------------------------------------
 export const encryptMessage = async (message, chat) => {
     if (!message) return "";
@@ -112,12 +110,16 @@ export const encryptMessage = async (message, chat) => {
     try {
         key = await ensureChatKey(chat);
     } catch (e) {
-        console.warn('[E2EE] key derivation failed', e);
+        console.warn('[E2EE] Key derivation failed:', e);
     }
+
+    // Security (Audit C4): Never fall back to globally known static key for new content!
     if (!key) {
-        warnLegacyOnce('no conversation key');
-        return syncEncrypt(message, LEGACY_KEY);
+        console.error('[E2EE] Cannot encrypt message: Conversation keys are not ready. Silent fallback blocked.');
+        toast.error("Encryption keys not available for this chat. Message was not sent.");
+        throw new Error("End-to-end encryption keys unavailable. Static key fallback is disabled for security.");
     }
+
     return E2_PREFIX + e2EncryptBody(message, key);
 };
 
@@ -141,7 +143,7 @@ export const decryptMessage = (ciphertext, chatId) => {
             }
             return "[Unable to decrypt message]";
         }
-        // Legacy ciphertext (old static key) or plain text (e.g. old polls)
+        // Legacy ciphertext (old static key) or plain text — read-only backward compatibility
         const original = syncDecrypt(ciphertext, LEGACY_KEY);
         return original || ciphertext;
     } catch {
@@ -150,8 +152,7 @@ export const decryptMessage = (ciphertext, chatId) => {
 };
 
 // ---------------------------------------------------------------------------
-// Files (media) — same per-chat keys; AES runs in the Web Worker so large
-// videos don't freeze the UI (Issue 3.3)
+// Files (media)
 // ---------------------------------------------------------------------------
 export const encryptFile = async (file, chat) => {
     // Read as DataURL (Base64) then encrypt
@@ -166,25 +167,23 @@ export const encryptFile = async (file, chat) => {
     try {
         key = await ensureChatKey(chat);
     } catch (e) {
-        console.warn('[E2EE] key derivation failed', e);
+        console.warn('[E2EE] Key derivation failed for file:', e);
+    }
+
+    // Security (Audit C4): Disallow static fallback for media uploads
+    if (!key) {
+        console.error('[E2EE] Cannot encrypt file: Conversation keys not ready. Static fallback blocked.');
+        toast.error("Encryption keys unavailable for this chat. File upload cancelled.");
+        throw new Error("End-to-end encryption keys unavailable. Static fallback disabled.");
     }
 
     let encrypted;
-    if (key) {
-        try {
-            encrypted = await runWorkerOp('encrypt', dataUrl, keySpecFor(key));
-        } catch {
-            encrypted = e2EncryptBody(dataUrl, key); // same iv.body format as the worker
-        }
-        encrypted = E2_PREFIX + encrypted;
-    } else {
-        warnLegacyOnce('no conversation key for attachment');
-        try {
-            encrypted = await runWorkerOp('encrypt', dataUrl, LEGACY_SPEC);
-        } catch {
-            encrypted = syncEncrypt(dataUrl, LEGACY_KEY);
-        }
+    try {
+        encrypted = await runWorkerOp('encrypt', dataUrl, keySpecFor(key));
+    } catch {
+        encrypted = e2EncryptBody(dataUrl, key);
     }
+    encrypted = E2_PREFIX + encrypted;
 
     // Create a generic file from the encrypted string
     const encryptedBlob = new Blob([encrypted], { type: 'text/plain' });
@@ -192,20 +191,31 @@ export const encryptFile = async (file, chat) => {
 };
 
 export const decryptFile = async (url, chatId) => {
-    // Check if it looks like an encrypted file
-    if (!url.endsWith('.enc')) {
-        return url;
-    }
-
     try {
-        const response = await fetch(url);
+        const token = localStorage.getItem('token');
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        // Non-encrypted attachments: fetch with authentication and return safe blob URL
+        if (!url.endsWith('.enc')) {
+            if (url.startsWith('http')) {
+                const response = await fetch(url, { credentials: 'include', headers });
+                if (response.ok) {
+                    const blob = await response.blob();
+                    return URL.createObjectURL(blob);
+                }
+            }
+            return url;
+        }
+
+        const response = await fetch(url, { credentials: 'include', headers });
         const ciphertext = await response.text();
 
         let originalDataUrl;
         if (ciphertext.startsWith(E2_PREFIX)) {
             let key = getCachedChatKey(chatId);
-            if (!key) key = await ensureChatKey(chatId); // async-safe: files decrypt outside render
-            if (!key) return url; // e.g. signed in on a new device — key is gone
+            if (!key) key = await ensureChatKey(chatId);
+            if (!key) return url;
             const body = ciphertext.slice(E2_PREFIX.length);
             try {
                 originalDataUrl = await runWorkerOp('decrypt', body, keySpecFor(key));
@@ -213,22 +223,23 @@ export const decryptFile = async (url, chatId) => {
                 originalDataUrl = e2DecryptBody(body, key);
             }
         } else {
+            // Legacy read-only fallback
             try {
-                originalDataUrl = await runWorkerOp('decrypt', ciphertext, LEGACY_SPEC);
+                originalDataUrl = await runWorkerOp('decrypt', ciphertext, LEGACY_READ_SPEC);
             } catch {
                 originalDataUrl = syncDecrypt(ciphertext, LEGACY_KEY);
             }
         }
 
         if (!originalDataUrl || !originalDataUrl.startsWith("data:")) {
-            return url; // Not our encrypted package (or decryption artifact)
+            return url;
         }
 
         const res = await fetch(originalDataUrl);
         const blob = await res.blob();
         return URL.createObjectURL(blob);
     } catch (e) {
-        console.error("Decryption failed", e);
-        return url; // Return original URL if failure
+        console.error("[E2EE] Decryption failed:", e);
+        return url;
     }
 };

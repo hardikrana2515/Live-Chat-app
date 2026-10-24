@@ -3,14 +3,18 @@ services:
     image: mongo:7.0
     container_name: talkyy-mongodb
     restart: unless-stopped
-    ports:
-      - "27017:27017"
+    # Security: Database is NOT exposed on host network (Audit C3).
+    # Accessible only to internal services on talkyy-network.
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME:-talkyy_admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD:-talkyy_secure_vault_password_2026}
+      - MONGO_INITDB_DATABASE=ChattApp
     volumes:
       - mongo_data:/data/db
     networks:
       - talkyy-network
     healthcheck:
-      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      test: [ "CMD", "mongosh", "-u", "${MONGO_INITDB_ROOT_USERNAME:-talkyy_admin}", "-p", "${MONGO_INITDB_ROOT_PASSWORD:-talkyy_secure_vault_password_2026}", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping')" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -21,14 +25,15 @@ services:
       dockerfile: Dockerfile
     container_name: talkyy-backend
     restart: unless-stopped
-    ports:
-      - "4001:4000"
+    # Port 4000 is internal-only to talkyy-network; reverse-proxied through Nginx on port 80/443.
+    expose:
+      - "4000"
     environment:
       - PORT=4000
-      - DATABASE_URI=mongodb://mongodb:27017/ChattApp
-      - JWT_SECRET=jwt_secret_key
-      - JWT_EXPIRATION=7d
-      - CLIENT_URL=http://localhost
+      - DATABASE_URI=${DATABASE_URI:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-talkyy_admin}:${MONGO_INITDB_ROOT_PASSWORD:-talkyy_secure_vault_password_2026}@mongodb:27017/ChattApp?authSource=admin}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET_MUST_BE_SET_IN_ENV}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-7d}
+      - CLIENT_URL=${CLIENT_URL:-http://localhost}
       - NODE_ENV=production
     volumes:
       - media_uploads:/app/public/media

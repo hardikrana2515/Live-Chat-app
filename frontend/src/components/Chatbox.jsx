@@ -6,7 +6,7 @@ import { useState, useContext, useEffect } from "react";
 import chatContext from "../contexts/ChatContext/chatcontext";
 import Message from "./Message";
 import SocketContext from '../contexts/Socket.io.Context/socket.Context.js'
-import API from '../contexts/Api.js';
+import API, { getApiBaseUrl } from '../contexts/Api.js';
 import TypingIndicator from './TypingIndicator';
 import { IoVideocam, IoCall } from "react-icons/io5";
 
@@ -78,12 +78,12 @@ const ChatBox = ({ onStartCall }) => {
                             src={
                                 selectedchat.isGroup
                                     ? selectedchat.groupIcon
-                                        ? `http://localhost:4000${selectedchat.groupIcon}`
+                                        ? `${getApiBaseUrl()}${selectedchat.groupIcon}`
                                         : "/group.png"
                                     : getOtherUser(user, selectedchat.members)?.avtar?.startsWith("data:image")
                                         ? getOtherUser(user, selectedchat.members).avtar
                                         : getOtherUser(user, selectedchat.members)?.avtar
-                                            ? `http://localhost:4000${getOtherUser(user, selectedchat.members).avtar}`
+                                            ? `${getApiBaseUrl()}${getOtherUser(user, selectedchat.members).avtar}`
                                             : "/avtar.png"
                             }
                             alt={
@@ -120,12 +120,19 @@ const ChatBox = ({ onStartCall }) => {
                                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--c-online)]">
                                         <span className="w-1.5 h-1.5 bg-[var(--c-online)] rounded-full animate-pulse" />
                                         Online
+                                        {getOtherUser(user, selectedchat.members)?.bio && (
+                                            <span className="text-[var(--c-text-3)] truncate ml-1 font-normal italic">
+                                                · &ldquo;{getOtherUser(user, selectedchat.members).bio}&rdquo;
+                                            </span>
+                                        )}
                                     </span>
                                 ) : (
                                     <span className="text-[11px] text-[var(--c-text-2)] truncate">
-                                        {getOtherUser(user, selectedchat.members)?.lastSeen
-                                            ? `Last seen ${new Date(getOtherUser(user, selectedchat.members).lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                                            : "Offline"}
+                                        {getOtherUser(user, selectedchat.members)?.bio
+                                            ? `“${getOtherUser(user, selectedchat.members).bio}”`
+                                            : (getOtherUser(user, selectedchat.members)?.lastSeen
+                                                ? `Last seen ${new Date(getOtherUser(user, selectedchat.members).lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                                : "Offline")}
                                     </span>
                                 )}
                             </div>

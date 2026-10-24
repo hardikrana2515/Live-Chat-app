@@ -11,13 +11,13 @@ import {
   votePoll,
   editMessage
 } from "../controller/message.controller.js";
-import upload from '../middleware/multer.js'
+import upload, { validateFileMagicBytes } from '../middleware/multer.js'
 
 const messageLimiter = rateLimit({ windowMs: 60 * 1000, max: 90, message: "Sending messages too fast. Please slow down." });
 
 const messageRoutes = express.Router();
 
-messageRoutes.post("/sendmessage", Auth, messageLimiter, upload.single('media'), sendMessage);
+messageRoutes.post("/sendmessage", Auth, messageLimiter, upload.single('media'), validateFileMagicBytes, sendMessage);
 messageRoutes.post("/allmessages", Auth, allMessages);
 messageRoutes.post("/deteleMessage", Auth, deleteMessage);
 messageRoutes.post("/deleteMessage", Auth, deleteMessage);

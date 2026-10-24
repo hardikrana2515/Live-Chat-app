@@ -1,7 +1,7 @@
 import axios from "axios"
 
 const API = axios.create({
-  baseURL: "http://localhost:4000/api/ChatApp",
+  baseURL: import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "/api/ChatApp" : "http://localhost:4000/api/ChatApp"),
   withCredentials: true
 });
 
@@ -31,5 +31,10 @@ API.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export const getApiBaseUrl = () => {
+  const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "" : "http://localhost:4000");
+  return apiUrl.replace(/\/api\/ChatApp\/?$/, "");
+};
 
 export default API;

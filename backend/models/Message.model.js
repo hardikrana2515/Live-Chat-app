@@ -10,10 +10,18 @@ const messageSchma = mongoose.Schema(
     message: {
       type: String,
       required: false,
+      maxlength: 20000,
     },
     media: {
       type: String,
       default: "",
+      maxlength: 500,
+    },
+    idempotencyKey: {
+      type: String,
+      sparse: true,
+      index: true,
+      maxlength: 128,
     },
     status: {
       type: String,
@@ -57,17 +65,24 @@ const messageSchma = mongoose.Schema(
         emoji: {
           type: String,
           required: true,
+          maxlength: 20,
         },
       },
     ],
     poll: {
-      question: { type: String },
-      options: [
-        {
-          text: { type: String, required: true },
-          votes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-        },
-      ],
+      question: { type: String, maxlength: 300, trim: true },
+      options: {
+        type: [
+          {
+            text: { type: String, required: true, maxlength: 150, trim: true },
+            votes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+          },
+        ],
+        validate: [
+          (v) => !v || v.length <= 10,
+          "Poll cannot exceed 10 options",
+        ],
+      },
     },
     chatId: {
       type: mongoose.Schema.Types.ObjectId,

@@ -10,6 +10,7 @@ import chatContext from "../contexts/ChatContext/chatcontext";
 import userContext from '../contexts/UserContext/userContext';
 import SocketContext from '../contexts/Socket.io.Context/socket.Context';
 import { registerChat, ensureChatKey } from '../utils/cryptoKeys';
+import { getApiBaseUrl } from '../contexts/Api.js';
 import Chat, { isChatUnread } from "./Chat";
 
 const ThemeToggle = () => {
@@ -148,7 +149,7 @@ const Sidebar = () => {
                   user?.avtar?.startsWith('data:image')
                     ? user.avtar
                     : user?.avtar
-                    ? `http://localhost:4000${user.avtar}`
+                    ? `${getApiBaseUrl()}${user.avtar}`
                     : '/avtar.png'
                 }
                 alt={user?.name || 'You'}
@@ -181,6 +182,15 @@ const Sidebar = () => {
             />
           </a>
         </div>
+
+        {/* Bio below User Profile */}
+        {user?.bio?.trim() && (
+          <div className="px-3 py-1.5 rounded-xl bg-[var(--c-canvas-80)] border border-[var(--c-line-50)] text-left">
+            <p className="text-xs text-[var(--c-text-2)] italic truncate leading-snug" title={user.bio}>
+              {user.bio}
+            </p>
+          </div>
+        )}
 
         {/* Search */}
         <Search />

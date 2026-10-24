@@ -16,13 +16,49 @@ const sendMessage = AsyncHandler(async (req, res) => {
       .json(new ApiResponse(400, null, "A valid chatId is required"));
   }
 
-  // Poll Handling
+  const idempotencyKey = (req.body.idempotencyKey || req.headers["idempotency-key"] || "").toString().trim();
+  const userId = req.user._id;
+
+  // Idempotency check (Audit M3)
+  if (idempotencyKey) {
+    const existingMessage = await Message.findOne({
+      idempotencyKey,
+      Sender: userId,
+      chatId,
+    })
+      .populate("Sender", "-password")
+      .populate({
+        path: "chatId",
+        populate: { path: "members", select: "-password" },
+      });
+    if (existingMessage) {
+      let populated = existingMessage.toObject();
+      populated.chat = populated.chatId;
+      return res.status(200).json(new ApiResponse(200, populated, "Message sent successfully"));
+    }
+  }
+
+  // Poll Handling & Validation (Audit M1)
   let pollData = null;
   if (req.body.poll) {
     try {
       pollData = typeof req.body.poll === "string" ? JSON.parse(req.body.poll) : req.body.poll;
     } catch {
       pollData = null;
+    }
+  }
+
+  if (pollData) {
+    if (typeof pollData.question !== "string" || pollData.question.trim().length === 0 || pollData.question.length > 300) {
+      return res.status(400).json(new ApiResponse(400, null, "Poll question must be between 1 and 300 characters"));
+    }
+    if (!Array.isArray(pollData.options) || pollData.options.length < 2 || pollData.options.length > 10) {
+      return res.status(400).json(new ApiResponse(400, null, "Poll must have between 2 and 10 options"));
+    }
+    for (const opt of pollData.options) {
+      if (!opt || typeof opt.text !== "string" || opt.text.trim().length === 0 || opt.text.length > 150) {
+        return res.status(400).json(new ApiResponse(400, null, "Each poll option must be between 1 and 150 characters"));
+      }
     }
   }
 
@@ -43,7 +79,6 @@ const sendMessage = AsyncHandler(async (req, res) => {
       .json(new ApiResponse(400, null, "Message, Media, or a valid Poll is required!"));
   }
 
-  const userId = req.user._id;
   const Chat = await ChatRoom.findById(chatId);
 
   if (!Chat) {
@@ -82,17 +117,14 @@ const sendMessage = AsyncHandler(async (req, res) => {
     }
   }
 
-  const mediaUrl = formData
-    ? req.file.mimetype.startsWith("image/")
-      ? `/Image/${req.file.filename}`
-      : `/media/${req.file.filename}`
-    : "";
+  const mediaUrl = formData ? `/media/${req.file.filename}` : "";
 
   const newMessage = await Message.create({
     Sender: userId,
     chatId: chatId,
     message: message || "",
     media: mediaUrl,
+    idempotencyKey: idempotencyKey || undefined,
     poll: hasValidPoll ? pollData : undefined,
   });
 
@@ -201,9 +233,8 @@ const deleteMessage = AsyncHandler(async (req, res) => {
   }
 
   const isSender = message.Sender.toString() === userId.toString();
-  const DELETE_GRACE_MS = 5 * 60 * 1000;
-  const withinOneHour =
-    new Date() - new Date(message.createdAt) < 60 * 60 * 1000 + DELETE_GRACE_MS;
+  // Strict 1-hour window (Audit M3)
+  const withinOneHour = (Date.now() - new Date(message.createdAt).getTime()) <= 60 * 60 * 1000;
 
   if (forEveryone) {
     if (!isSender) {
@@ -233,6 +264,17 @@ const deleteMessage = AsyncHandler(async (req, res) => {
 
     await message.save();
 
+    // Update Chat.lastMessage if the deleted message was the lastMessage (Audit M2)
+    if (chat.lastMessage && chat.lastMessage.toString() === message._id.toString()) {
+      const prevMessage = await Message.findOne({
+        chatId: message.chatId,
+        isDeleted: false,
+        _id: { $ne: message._id },
+      }).sort({ createdAt: -1 });
+      chat.lastMessage = prevMessage ? prevMessage._id : null;
+      await chat.save();
+    }
+
     return res
       .status(200)
       .json(new ApiResponse(200, { messageId, isDeleted: true }, "Message deleted for everyone successfully"));
@@ -261,13 +303,27 @@ const markAsRead = AsyncHandler(async (req, res) => {
       return res.status(400).json(new ApiResponse(400, null, "No valid message IDs provided"));
     }
 
+    // Authorization (Audit H3): Only mark messages in chats where user is a verified member
+    const messages = await Message.find({ _id: { $in: validIds } }).select("chatId");
+    const chatIds = [...new Set(messages.map((m) => m.chatId?.toString()).filter(Boolean))];
+    const authorizedChats = await ChatRoom.find({ _id: { $in: chatIds }, members: userId }).select("_id");
+    const authorizedChatIds = new Set(authorizedChats.map((c) => c._id.toString()));
+
+    const authorizedMessageIds = messages
+      .filter((m) => authorizedChatIds.has(m.chatId?.toString()))
+      .map((m) => m._id);
+
+    if (authorizedMessageIds.length === 0) {
+      return res.status(403).json(new ApiResponse(403, null, "Unauthorized: Not a member of this chat"));
+    }
+
     await Message.updateMany(
-      { _id: { $in: validIds }, readBy: { $ne: userId } },
+      { _id: { $in: authorizedMessageIds }, readBy: { $ne: userId } },
       { $addToSet: { readBy: userId }, $set: { status: "read" } }
     );
     return res
       .status(200)
-      .json(new ApiResponse(200, { messageIds: validIds, readerId: userId }, "Messages marked as read"));
+      .json(new ApiResponse(200, { messageIds: authorizedMessageIds, readerId: userId }, "Messages marked as read"));
   }
 
   if (!messageId || !mongoose.isValidObjectId(messageId)) {
@@ -277,11 +333,18 @@ const markAsRead = AsyncHandler(async (req, res) => {
   }
 
   const message = await Message.findById(messageId);
-
   if (!message) {
     return res
       .status(404)
       .json(new ApiResponse(404, null, "Message not found"));
+  }
+
+  // Authorization check (Audit H3): Verify user belongs to the chat that owns this message
+  const isMember = await ChatRoom.exists({ _id: message.chatId, members: userId });
+  if (!isMember) {
+    return res
+      .status(403)
+      .json(new ApiResponse(403, null, "Unauthorized: You are not a member of this conversation"));
   }
 
   if (!Array.isArray(message.readBy)) {
@@ -293,22 +356,9 @@ const markAsRead = AsyncHandler(async (req, res) => {
     await message.save();
   }
 
-  let populatedMessage = await Message.findById(messageId)
-    .populate("Sender", "name avtar email")
-    .populate({
-      path: "chatId",
-      populate: {
-        path: "members",
-        select: "name avtar email",
-      },
-    });
-
-  populatedMessage = populatedMessage.toObject();
-  populatedMessage.chat = populatedMessage.chatId;
-
   return res
     .status(200)
-    .json(new ApiResponse(200, populatedMessage, "Message marked as read"));
+    .json(new ApiResponse(200, { messageId: message._id, chatId: message.chatId, status: "read", readBy: message.readBy }, "Message marked as read"));
 });
 
 const reactToMessage = AsyncHandler(async (req, res) => {
@@ -337,28 +387,32 @@ const reactToMessage = AsyncHandler(async (req, res) => {
     return res.status(403).json(new ApiResponse(403, null, "You are not a member of this chat"));
   }
 
-  if (!Array.isArray(message.reactions)) {
-    message.reactions = [];
-  }
-
-  const existingReactionIndex = message.reactions.findIndex(
+  // Atomic reaction update to prevent concurrency race conditions (Audit M3)
+  const existingReaction = (message.reactions || []).find(
     (r) => r.user && r.user.toString() === userId.toString()
   );
 
-  if (existingReactionIndex > -1) {
-    if (message.reactions[existingReactionIndex].emoji === emoji) {
+  if (existingReaction) {
+    if (existingReaction.emoji === emoji) {
       // Remove reaction if same
-      message.reactions.splice(existingReactionIndex, 1);
+      await Message.updateOne(
+        { _id: messageId },
+        { $pull: { reactions: { user: userId } } }
+      );
     } else {
-      // Update reaction
-      message.reactions[existingReactionIndex].emoji = emoji;
+      // Update reaction emoji
+      await Message.updateOne(
+        { _id: messageId, "reactions.user": userId },
+        { $set: { "reactions.$.emoji": emoji } }
+      );
     }
   } else {
     // Add new reaction
-    message.reactions.push({ user: userId, emoji });
+    await Message.updateOne(
+      { _id: messageId },
+      { $push: { reactions: { user: userId, emoji } } }
+    );
   }
-
-  await message.save();
 
   let populatedMessage = await Message.findById(messageId)
     .populate("Sender", "name avtar email")
@@ -408,19 +462,18 @@ const votePoll = AsyncHandler(async (req, res) => {
 
   const alreadyVotedHere = hasVotedInOption(message.poll.options[optionIndex] || {});
 
-  message.poll.options.forEach((opt) => {
-    if (!Array.isArray(opt.votes)) opt.votes = [];
-    const index = opt.votes.findIndex((v) => String(v?._id ?? v) === String(userId));
-    if (index > -1) {
-      opt.votes.splice(index, 1);
-    }
-  });
+  // Atomic poll vote: pull user's vote from all options, then conditionally add (Audit M3)
+  await Message.updateOne(
+    { _id: messageId },
+    { $pull: { "poll.options.$[].votes": userId } }
+  );
 
   if (!alreadyVotedHere) {
-    message.poll.options[optionIndex].votes.push(userId);
+    await Message.updateOne(
+      { _id: messageId },
+      { $addToSet: { [`poll.options.${optionIndex}.votes`]: userId } }
+    );
   }
-
-  await message.save();
 
   let populatedMessage = await Message.findById(messageId)
     .populate("Sender", "name avtar email")
@@ -462,14 +515,24 @@ const editMessage = AsyncHandler(async (req, res) => {
     return res.status(403).json(new ApiResponse(403, null, "You can only edit your own messages"));
   }
 
+  // Membership check: sender must still be a member of the chat (Audit M3)
+  const chatDoc = await ChatRoom.findById(existingMessage.chatId);
+  if (!chatDoc || !(chatDoc.members || []).some((m) => (m?._id || m).toString() === userId.toString())) {
+    return res.status(403).json(new ApiResponse(403, null, "You are no longer a member of this chat"));
+  }
+
   // Cannot edit deleted messages
   if (existingMessage.isDeleted) {
     return res.status(400).json(new ApiResponse(400, null, "Cannot edit a deleted message"));
   }
 
-  const EDIT_GRACE_MS = 5 * 60 * 1000;
-  const withinOneHour =
-    new Date() - new Date(existingMessage.createdAt) < 60 * 60 * 1000 + EDIT_GRACE_MS;
+  // Poll messages cannot be edited (Audit M3)
+  if (existingMessage.poll && existingMessage.poll.question) {
+    return res.status(400).json(new ApiResponse(400, null, "Poll messages cannot be edited"));
+  }
+
+  // Strict 1-hour window (Audit M3)
+  const withinOneHour = (Date.now() - new Date(existingMessage.createdAt).getTime()) <= 60 * 60 * 1000;
   if (!withinOneHour) {
     return res.status(403).json(new ApiResponse(403, null, "Messages can only be edited within 1 hour."));
   }

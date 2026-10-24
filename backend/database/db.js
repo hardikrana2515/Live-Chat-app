@@ -1,12 +1,16 @@
-import mongoose  from "mongoose";
+import mongoose from "mongoose";
 
-const connectDB = async ()=>{
-    try {
-        await mongoose.connect(process.env.DATABASE_URI)
-        console.log(`Database Connectrd at ${process.env.DATABASE_URI}`)
-
-    } catch (error) {
-        console.error(`Error: ${error.message}`)
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.DATABASE_URI);
+    const maskedUri = (process.env.DATABASE_URI || "").replace(/:\/\/[^:]+:[^@]+@/, "://***:***@");
+    console.log(`Database Connected at ${maskedUri || "mongodb"}`);
+  } catch (error) {
+    console.error(`Database Connection Error: ${error.message}`);
+    if (process.env.NODE_ENV === "production") {
+      process.exit(1);
     }
-}
-export default connectDB
+  }
+};
+
+export default connectDB;

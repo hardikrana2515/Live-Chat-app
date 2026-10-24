@@ -48,9 +48,10 @@ const userRegister = AsyncHandler(async (req, res) => {
   });
 
   if (user) {
+    const createdUser = await User.findById(user._id).select("-password -resetPasswordToken -resetPasswordExpire");
     return res
       .status(200)
-      .json(new ApiResponse(200, user, "User successfully Registered."));
+      .json(new ApiResponse(200, createdUser, "User successfully Registered."));
   } else {
     throw new ApiError(400, "Invalid Data");
   }
@@ -60,10 +61,9 @@ const userLogin = AsyncHandler(async (req, res) => {
   const { phonenumber, email, password } = req.body;
 
   if ((!email && !phonenumber) || !password) {
-    // throw new ApiError(400, "Please provide email or phone and password.");
     return res.status(400)
       .json(new ApiResponse(400, null, "Please Fill All Fields."
-      ))
+      ));
   }
 
   let user;
@@ -74,26 +74,30 @@ const userLogin = AsyncHandler(async (req, res) => {
   }
 
   if (!user) {
-    // throw new ApiError(401, "User Not Found!!");
     return res.status(401)
       .json(new ApiResponse(401, null, "User not Found! Please Login."
-      ))
+      ));
   }
 
   const isCorrectPass = await user.comparePassword(password);
 
   if (!isCorrectPass) {
-    // throw new ApiError(400, "Incorrect password");
     return res.status(400)
       .json(new ApiResponse(400, null, "Incorrect password"
-      ))
+      ));
   }
 
   const Authtoken = await user.generateAuthToken();
 
-  res.cookie("token", Authtoken, { httpOnly: true, sameSite: "lax" });
+  const isProd = process.env.NODE_ENV === "production";
+  res.cookie("token", Authtoken, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "strict" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
 
-  const loggedinUser = await User.findById(user._id).select("-password");
+  const loggedinUser = await User.findById(user._id).select("-password -resetPasswordToken -resetPasswordExpire");
   if (Authtoken) {
     res
       .status(200)
@@ -110,22 +114,31 @@ const userLogin = AsyncHandler(async (req, res) => {
 });
 
 const getUser = AsyncHandler(async (req, res) => {
-  const user = req.user;
+  const user = await User.findById(req.user._id).select("-password -resetPasswordToken -resetPasswordExpire");
   return res
     .status(200)
     .json(new ApiResponse(200, user, "User Fetched Succesfully"));
 });
 
 const userLogout = AsyncHandler(async (req, res) => {
-  const token = req.cookies?.token;
-  if (!token) {
-    throw new ApiError(400, "User Not Logged in !!!");
+  const auth_token = req.cookies?.token || req.header("authorization");
+  if (auth_token) {
+    try {
+      const cleanToken = auth_token.startsWith("Bearer ") ? auth_token.slice(7).trim() : auth_token.trim();
+      const decoded = jwt.verify(cleanToken, process.env.JWT_SECRET);
+      if (decoded?._id) {
+        // Invalidate current and prior tokens across all devices (Audit H1)
+        await User.findByIdAndUpdate(decoded._id, { $inc: { tokenVersion: 1 }, isOnline: false });
+      }
+    } catch { /* token may already be expired */ }
   }
 
-  res.cookie("token", null, {
+  const isProd = process.env.NODE_ENV === "production";
+  res.cookie("token", "", {
     httpOnly: true,
     expires: new Date(0),
-    sameSite: "lax",
+    secure: isProd,
+    sameSite: isProd ? "strict" : "lax",
     path: "/",
   });
 
@@ -138,14 +151,24 @@ const updatePassword = AsyncHandler(async (req, res) => {
   const { oldpassword, newpassword } = req.body;
 
   const user = await User.findById(req.user?._id);
-  const isoldPassword = await user.comparePassword(oldpassword);
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
 
+  const isoldPassword = await user.comparePassword(oldpassword);
   if (!isoldPassword) {
     throw new ApiError(400, "Invalid Password!");
   }
+
+  const passwordRegex = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}$/;
+  if (!passwordRegex.test(newpassword)) {
+    throw new ApiError(400, "Password must be at least 8 characters long and contain at least 1 number, 1 lowercase letter, and 1 uppercase letter.");
+  }
+
   const hashedPassword = await User.hashPassword(newpassword);
   user.password = hashedPassword;
-  await user.save({ validateBeforeSave: false });
+  user.tokenVersion = (user.tokenVersion || 0) + 1; // Revoke all active sessions on password change
+  await user.save();
 
   return res
     .status(200)
@@ -177,20 +200,106 @@ const uploadImage = AsyncHandler(async (req, res) => {
     );
 });
 
+const updateProfile = AsyncHandler(async (req, res) => {
+  const { name, email, phonenumber, gender, bio } = req.body;
+  const userId = req.user?._id;
+
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  // 1. Update Name
+  if (name !== undefined) {
+    const trimmedName = String(name).trim();
+    if (!trimmedName) {
+      throw new ApiError(400, "Name cannot be empty");
+    }
+    if (trimmedName.length > 100) {
+      throw new ApiError(400, "Name cannot exceed 100 characters");
+    }
+    user.name = trimmedName;
+  }
+
+  // 2. Update Email
+  if (email !== undefined) {
+    const trimmedEmail = String(email).trim().toLowerCase();
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      throw new ApiError(400, "Please provide a valid email address");
+    }
+    if (trimmedEmail !== user.email) {
+      const existingEmail = await User.findOne({ email: trimmedEmail, _id: { $ne: userId } });
+      if (existingEmail) {
+        throw new ApiError(409, "Email is already in use by another account");
+      }
+      user.email = trimmedEmail;
+    }
+  }
+
+  // 3. Update Phone Number
+  if (phonenumber !== undefined) {
+    const trimmedPhone = String(phonenumber).trim();
+    const phoneRegex = /^\+?[0-9]{7,15}$/;
+    if (!phoneRegex.test(trimmedPhone)) {
+      throw new ApiError(400, "Please enter a valid phone number (7 to 15 digits)");
+    }
+    if (trimmedPhone !== user.phonenumber) {
+      const existingPhone = await User.findOne({ phonenumber: trimmedPhone, _id: { $ne: userId } });
+      if (existingPhone) {
+        throw new ApiError(409, "Phone number is already in use by another account");
+      }
+      user.phonenumber = trimmedPhone;
+    }
+  }
+
+  // 4. Update Gender
+  if (gender !== undefined) {
+    const normalizedGender = String(gender).trim().toLowerCase();
+    if (!["male", "female", "other"].includes(normalizedGender)) {
+      throw new ApiError(400, "Gender must be male, female, or other");
+    }
+    user.gender = normalizedGender;
+  }
+
+  // 5. Update Bio
+  if (bio !== undefined) {
+    const trimmedBio = String(bio).trim();
+    if (trimmedBio.length > 200) {
+      throw new ApiError(400, "Bio cannot exceed 200 characters");
+    }
+    user.bio = trimmedBio;
+  }
+
+  // Username is intentionally immutable per requirements
+  await user.save();
+
+  const updatedUser = await User.findById(userId).select("-password -resetPasswordToken -resetPasswordExpire");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, updatedUser, "Profile updated successfully"));
+});
+
 const Alluser = AsyncHandler(async (req, res) => {
-  const keywords = req.query.search
+  // Sanitize search to escape special regex characters (Audit H5 ReDoS defense)
+  const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const search = req.query.search ? escapeRegex(req.query.search.trim()) : "";
+
+  const keywords = search
     ? {
       $or: [
-        { name: { $regex: req.query.search, $options: "i" } },
-        { phonenumber: { $regex: req.query.search, $options: "i" } },
-        { userName: { $regex: req.query.search, $options: "i" } },
+        { name: { $regex: search, $options: "i" } },
+        { userName: { $regex: search, $options: "i" } },
       ],
     }
     : {};
 
+  // Limit search to 50 results (Audit H5) and select only public contact fields (Audit H2)
   const users = await User.find(keywords)
     .find({ _id: { $ne: req.user._id } })
-    .select("-password");
+    .select("_id name userName avtar isOnline lastSeen publicKey bio gender")
+    .limit(50);
 
   // Query existing 1-on-1 chats for the logged in user
   const existingChats = await ChatRoom.find({
@@ -250,8 +359,10 @@ const forgotPassword = AsyncHandler(async (req, res, next) => {
   const user = await User.findOne({ email: req.body.email });
 
   if (!user) {
-    // throw new ApiError(404, "User not found");
-    return res.status(404).json(new ApiResponse(404, null, "User not found"));
+    // Prevent account enumeration (Audit H5): Do not reveal if account exists
+    return res.status(200).json(
+      new ApiResponse(200, {}, "If an account with that email exists, password reset instructions have been sent.")
+    );
   }
 
   // Get ResetPassword Token
@@ -259,7 +370,9 @@ const forgotPassword = AsyncHandler(async (req, res, next) => {
 
   await user.save({ validateBeforeSave: false });
 
-  const resetPasswordUrl = `http://localhost:5173/password/reset/${resetToken}`;
+  // Use configured CLIENT_URL instead of hardcoded localhost:5173 (Audit H4)
+  const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+  const resetPasswordUrl = `${clientUrl}/password/reset/${resetToken}`;
 
   const message = `Your password reset token is :- \n\n ${resetPasswordUrl} \n\nIf you have not requested this email then, please ignore it.`;
 
@@ -283,7 +396,6 @@ const forgotPassword = AsyncHandler(async (req, res, next) => {
 <body>
   <div class="container">
     <div class="header">
-      <!-- You can add a logo img string here if you have a public URL -->
       <h1>Live Chat App</h1>
     </div>
     <div class="content">
@@ -308,11 +420,11 @@ const forgotPassword = AsyncHandler(async (req, res, next) => {
     await sendEmail({
       email: user.email,
       subject: `Chat App Password Recovery`,
-      message, // Fallback for clients involving no-html
-      html,    // HTML content
+      message,
+      html,
     });
 
-    res.status(200).json(new ApiResponse(200, {}, `Email sent to ${user.email} successfully`));
+    res.status(200).json(new ApiResponse(200, {}, `Password reset instructions sent to ${user.email}`));
   } catch (error) {
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
@@ -352,6 +464,7 @@ const resetPassword = AsyncHandler(async (req, res, next) => {
   user.password = hashedPassword;
   user.resetPasswordToken = undefined;
   user.resetPasswordExpire = undefined;
+  user.tokenVersion = (user.tokenVersion || 0) + 1; // Revoke all prior sessions (Audit H1)
 
   await user.save();
 
@@ -435,6 +548,10 @@ const acceptRequest = AsyncHandler(async (req, res) => {
 
   if (!requestId) {
     throw new ApiError(400, "Request ID is required");
+  }
+
+  if (!status || !["accepted", "rejected"].includes(status)) {
+    throw new ApiError(400, "Status must be either 'accepted' or 'rejected'");
   }
 
   const user = await User.findById(req.user._id);
@@ -540,6 +657,15 @@ const blockUser = AsyncHandler(async (req, res) => {
     return res.status(400).json(new ApiResponse(400, null, "Valid userId is required"));
   }
 
+  if (String(userId) === String(req.user._id)) {
+    return res.status(400).json(new ApiResponse(400, null, "You cannot block yourself"));
+  }
+
+  const targetUser = await User.findById(userId);
+  if (!targetUser) {
+    return res.status(404).json(new ApiResponse(404, null, "User to block not found"));
+  }
+
   const user = await User.findById(req.user._id);
   if (!Array.isArray(user.blockedUsers)) {
     user.blockedUsers = [];
@@ -557,6 +683,10 @@ const unblockUser = AsyncHandler(async (req, res) => {
 
   if (!userId || !mongoose.isValidObjectId(userId)) {
     return res.status(400).json(new ApiResponse(400, null, "Valid userId is required"));
+  }
+
+  if (String(userId) === String(req.user._id)) {
+    return res.status(400).json(new ApiResponse(400, null, "You cannot unblock yourself"));
   }
 
   const user = await User.findById(req.user._id);
@@ -863,5 +993,6 @@ export {
   getIdentityVault,
   registerIdentityVault,
   updateIdentityVault,
-  resetIdentity
+  resetIdentity,
+  updateProfile
 };

@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { IoCall, IoCloseSharp, IoMail } from "react-icons/io5";
 import { LuCrown } from "react-icons/lu";
 import chatContext from '../contexts/ChatContext/chatcontext';
+import { getApiBaseUrl } from '../contexts/Api.js';
 
 const Groupinfo = () => {
     const { setChatmodal, selectedchat, user } = useContext(chatContext);
@@ -34,10 +35,12 @@ const Groupinfo = () => {
                     <img
                         src={
                             selectedchat.isGroup
-                                ? (selectedchat.groupIcon ? `http://localhost:4000${selectedchat.groupIcon}` : "/group.png")
+                                ? (selectedchat.groupIcon ? `${getApiBaseUrl()}${selectedchat.groupIcon}` : "/group.png")
                                 : (otherUser?.avtar?.startsWith('data:image')
                                     ? otherUser.avtar
-                                    : `http://localhost:4000${otherUser?.avtar}`)
+                                    : otherUser?.avtar
+                                    ? `${getApiBaseUrl()}${otherUser.avtar}`
+                                    : "/avtar.png")
                         }
                         alt={selectedchat.isGroup ? selectedchat.chatname : otherUser?.userName}
                         className="w-20 h-20 rounded-full object-cover border-4 border-[var(--c-primary-50)]"
@@ -65,17 +68,29 @@ const Groupinfo = () => {
                     </div>
                 </div>
 
-                {/* Contact Info */}
-                {!selectedchat.isGroup && otherUser?.phonenumber && (
-                    <div className="mt-6 space-y-4">
-                        <div className="flex items-center gap-2 text-[var(--c-text-3)] ">
-                            <IoCall className="text-xl" />
-                            <span className="text-md">{otherUser.phonenumber}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[var(--c-text-3)] ">
-                            <IoMail className="text-xl" />
-                            <span className="text-md">{otherUser.email}</span>
-                        </div>
+                {/* Contact Info & Bio */}
+                {!selectedchat.isGroup && (
+                    <div className="mt-6 space-y-3.5">
+                        {otherUser?.bio && (
+                            <div className="p-3 rounded-xl bg-[var(--c-surface-80)] border border-[var(--c-line-50)] text-xs">
+                                <span className="text-[10px] uppercase font-bold text-[var(--c-text-3)] tracking-wider block mb-1">
+                                    Bio &amp; Status
+                                </span>
+                                <p className="text-[var(--c-text)] italic">&ldquo;{otherUser.bio}&rdquo;</p>
+                            </div>
+                        )}
+                        {otherUser?.phonenumber && (
+                            <div className="flex items-center gap-2 text-[var(--c-text-3)] ">
+                                <IoCall className="text-xl" />
+                                <span className="text-md">{otherUser.phonenumber}</span>
+                            </div>
+                        )}
+                        {otherUser?.email && (
+                            <div className="flex items-center gap-2 text-[var(--c-text-3)] ">
+                                <IoMail className="text-xl" />
+                                <span className="text-md">{otherUser.email}</span>
+                            </div>
+                        )}
                     </div>
                 )}
 

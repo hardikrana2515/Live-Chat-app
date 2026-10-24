@@ -1,5 +1,6 @@
 import { useState, useContext, useEffect } from 'react';
 import userContext from '../contexts/UserContext/userContext';
+import { getApiBaseUrl } from '../contexts/Api.js';
 
 const Profile = () => {
   const { GetUser, user, setCard } = useContext(userContext);
@@ -71,7 +72,7 @@ const Profile = () => {
             user.avtar?.startsWith('data:image')
               ? user.avtar
               : user.avtar
-              ? `http://localhost:4000${user.avtar}`
+              ? `${getApiBaseUrl()}${user.avtar}`
               : '/avtar.png'
           }
           alt={user.userName}
@@ -80,7 +81,7 @@ const Profile = () => {
         <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[var(--c-online)] border-2 border-[var(--c-panel)] rounded-full" />
       </div>
 
-      {/* Name + Username */}
+      {/* Name + Username + Bio */}
       <div className="flex flex-col justify-center overflow-hidden min-w-0">
         <div className="flex items-center gap-1.5">
           <h3 className="text-[var(--c-text)] font-semibold text-xs sm:text-sm truncate leading-tight group-hover:text-[var(--c-link)] transition-colors">
@@ -93,6 +94,11 @@ const Profile = () => {
         <p className="text-[11px] text-[var(--c-text-2)] truncate">
           @{user.userName}
         </p>
+        {user.bio && (
+          <p className="text-[11px] text-[var(--c-text-3)] italic truncate mt-0.5" title={user.bio}>
+            &ldquo;{user.bio}&rdquo;
+          </p>
+        )}
       </div>
     </div>
   );

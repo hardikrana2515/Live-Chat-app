@@ -20,11 +20,12 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 
 function App() {
+  const SOCKET_ENDPOINT = import.meta.env.VITE_SOCKET_URL || (import.meta.env.PROD ? window.location.origin : "http://localhost:4000");
 
   return (
     <ErrorBoundary>
     <UserState>
-      <SocketStates ENDPOINT="http://localhost:4000">
+      <SocketStates ENDPOINT={SOCKET_ENDPOINT}>
         <ChatState>
           <MessageState>
             <ToastContainer

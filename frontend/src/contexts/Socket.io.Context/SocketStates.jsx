@@ -10,6 +10,7 @@ const SocketStates = ({ children, ENDPOINT }) => {
     const [socketInstance, setSocketInstance] = useState(null);
     const { user } = useContext(userContext);
     const prevUserIdRef = useRef(null);
+    const prevTokenRef = useRef(null);
 
     useEffect(() => {
         let userinfo = user?._id ? user : null;
@@ -21,21 +22,28 @@ const SocketStates = ({ children, ENDPOINT }) => {
             }
         }
 
-        if (!userinfo || !userinfo._id) {
+        const token = user?.token || localStorage.getItem("token");
+
+        // Do not attempt connection if unauthenticated or token is missing
+        if (!userinfo || !userinfo._id || !token) {
             if (socket.current) {
                 socket.current.disconnect();
                 socket.current = null;
             }
             prevUserIdRef.current = null;
+            prevTokenRef.current = null;
             setIsConnected(false);
             setSocketInstance(null);
             return;
         }
 
         const isUserChanged = prevUserIdRef.current && prevUserIdRef.current !== userinfo._id;
+        const isTokenChanged = prevTokenRef.current && prevTokenRef.current !== token;
         prevUserIdRef.current = userinfo._id;
+        prevTokenRef.current = token;
 
-        if (socket.current && isUserChanged) {
+        // If user or authentication token changed, disconnect old session
+        if (socket.current && (isUserChanged || isTokenChanged)) {
             socket.current.disconnect();
             socket.current = null;
             setIsConnected(false);
@@ -45,21 +53,38 @@ const SocketStates = ({ children, ENDPOINT }) => {
         if (!socket.current) {
             const s = io(ENDPOINT, {
                 transports: ['websocket'],
-                withCredentials: true
+                withCredentials: true,
+                auth: {
+                    token: token
+                }
             });
             socket.current = s;
             setSocketInstance(s);
+
+            // Keep auth token fresh on reconnect attempts
+            if (s.io) {
+                s.io.on("reconnect_attempt", () => {
+                    const freshToken = localStorage.getItem("token") || user?.token;
+                    if (freshToken) {
+                        s.auth = { token: freshToken };
+                    }
+                });
+            }
 
             s.on("connect", () => {
                 setIsConnected(true);
                 s.emit("setup", userinfo);
             });
 
-            // Re-join personal room after reconnection so events resume (Issue §2)
+            // Re-join personal room after reconnection so events resume
             s.on("reconnect", () => {
                 setIsConnected(true);
+                const freshToken = localStorage.getItem("token") || user?.token;
+                if (freshToken) {
+                    s.auth = { token: freshToken };
+                }
                 s.emit("setup", userinfo);
-                console.log("[Socket] Reconnected — re-joined personal room");
+                console.log("[Socket] Reconnected with authenticated session");
             });
 
             s.on("connect_error", (err) => {
@@ -67,7 +92,8 @@ const SocketStates = ({ children, ENDPOINT }) => {
                 setIsConnected(false);
             });
 
-            s.on("disconnect", () => {
+            s.on("disconnect", (reason) => {
+                console.log("[Socket] Disconnected:", reason);
                 setIsConnected(false);
             });
         } else if (socket.current.connected) {

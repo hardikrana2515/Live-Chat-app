@@ -340,7 +340,30 @@ const UserState = ({ children }) => {
 
     }
 
+    const updateProfile = async (profileData) => {
+        try {
+            const res = await API.put("user/updateProfile", profileData, {
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                withCredentials: true
+            });
 
+            const updatedUser = res.data?.data || {};
+            const token = updatedUser.token || user.token || localStorage.getItem("token");
+            const merged = token ? { ...updatedUser, token } : updatedUser;
+            setUser(merged);
+            try {
+                const { token: _omit, ...persisted } = merged;
+                localStorage.setItem("userInfo", JSON.stringify(persisted));
+            } catch { /* ignore persist errors */ }
+
+            return updatedUser;
+        } catch (e) {
+            const errorMessage = e?.response?.data?.message || "Failed to update profile";
+            throw new Error(errorMessage);
+        }
+    };
 
     const sendRequest = async (userId) => {
         try {
@@ -399,7 +422,7 @@ const UserState = ({ children }) => {
         <UserContext.Provider value={{
             login, setLogin, signup, LoginFunc, setError, error,
             Alluser, setLoading, searchUser, setSearchUser, GetUser, refreshUser,
-            user, logout, setCard, card, UploadImg, updatePassword,
+            user, logout, setCard, card, UploadImg, updatePassword, updateProfile,
             setpass, pass, sendRequest, acceptRequest, getFriendRequests, friendRequests,
             logoutModal, setLogoutModal,
             identityState, setIdentityState,

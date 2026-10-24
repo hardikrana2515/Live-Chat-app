@@ -70,7 +70,7 @@ const Chatpage = () => {
       setCallData(null);
     };
 
-    const handleGroupCallEnded = ({ chatId: endedChatId, duration, callType: cType, reason }) => {
+    const handleGroupCallEnded = ({ chatId: endedChatId, reason }) => {
       console.log("[Chatpage] Group call ended live:", endedChatId, reason);
       const endedStr = endedChatId?.toString();
       setCallData(prev => {

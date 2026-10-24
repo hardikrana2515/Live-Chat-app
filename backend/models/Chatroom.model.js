@@ -5,6 +5,8 @@ const chatRoomSchema = mongoose.Schema(
     chatname: {
       type: String,
       default: "",
+      trim: true,
+      maxlength: 100,
     },
     isGroup: {
       type: Boolean,

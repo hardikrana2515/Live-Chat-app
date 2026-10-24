@@ -434,8 +434,13 @@ export const rekeyGroupKeyFor = async (chatOrId, targets, userId = currentUser) 
   const cached = keyCache.get(cid);
   let gkB64 = null;
   if (cached) {
-    gkB64 = CryptoJS.enc.Base64.stringify(cached);
-  } else {
+    const rawKey = cached?.key || cached;
+    if (rawKey && typeof rawKey === 'object' && rawKey.words) {
+      gkB64 = CryptoJS.enc.Base64.stringify(rawKey);
+    }
+  }
+  
+  if (!gkB64) {
     const wrap = (chat.groupKeys || {})[uid];
     if (wrap && wrap.key) {
       let wrapperPub = wrap.byKey || identity.publicKeyB64;

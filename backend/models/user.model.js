@@ -8,33 +8,51 @@ const userschema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
+      trim: true,
+      maxlength: 100,
     },
     gender: {
       type: String,
       required: true,
-      enum: ["male", "female"],
+      enum: ["male", "female", "other"],
+    },
+    bio: {
+      type: String,
+      default: "",
+      maxlength: 200,
+      trim: true,
     },
     userName: {
       type: String,
       required: true,
       unique: true,
+      trim: true,
+      lowercase: true,
+      maxlength: 50,
+      match: [/^[a-zA-Z0-9_]{3,50}$/, "Invalid username format"],
     },
     phonenumber: {
       type: String,
       required: true,
       unique: true,
-      match: [/\d{10}/, "is invalid"],
+      trim: true,
+      maxlength: 20,
+      match: [/^\+?[0-9]{7,15}$/, "is invalid"],
     },
     email: {
       type: String,
       required: true,
       unique: true,
-      match: [/\S+@\S+\.\S+/, "is invalid"],
+      trim: true,
+      lowercase: true,
+      maxlength: 150,
+      match: [/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, "is invalid"],
     },
     password: {
       type: String,
       required: true,
       minlength: 6,
+      maxlength: 128,
     },
     avtar: {
       type: String,
@@ -50,6 +68,10 @@ const userschema = new mongoose.Schema(
     },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
     friends: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -142,9 +164,13 @@ const userschema = new mongoose.Schema(
 );
 
 userschema.methods.generateAuthToken = function () {
-  const token = jwt.sign({ _id: this._id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRATION,
-  });
+  const token = jwt.sign(
+    { _id: this._id, tokenVersion: this.tokenVersion || 0 },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: process.env.JWT_EXPIRATION || "7d",
+    }
+  );
   return token;
 };
 

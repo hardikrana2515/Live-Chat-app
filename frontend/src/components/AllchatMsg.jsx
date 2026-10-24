@@ -1,18 +1,18 @@
 import { useContext, useState, useEffect, useRef } from 'react';
 import { MdAddReaction } from "react-icons/md";
 import { FiEdit2, FiCopy, FiTrash2, FiGlobe, FiLock, FiKey } from "react-icons/fi";
-import { IoPerson, IoCall, IoVideocam, IoVideocamOff, IoCheckmarkDone, IoCheckmark } from "react-icons/io5";
+import { IoPerson, IoCall, IoVideocam, IoVideocamOff, IoCheckmarkDone } from "react-icons/io5";
 import { toast } from 'react-toastify';
 import messageContext from '../contexts/MessageContext/messageContext';
 import chatContext from '../contexts/ChatContext/chatcontext';
 import userContext from '../contexts/UserContext/userContext';
-import AudioMessage from './AudioMessage';
 import { decryptMessage } from '../utils/EncryptionUtils';
 import { getCachedChatKey } from '../utils/cryptoKeys.js';
 import PollMessage from './PollMessage';
 import EncryptedAttachment from './EncryptedAttachment';
 import EditMessageModal from './EditMessageModal';
 import SocketContext from '../contexts/Socket.io.Context/socket.Context.js';
+import { getApiBaseUrl } from '../contexts/Api.js';
 
 const formatCallDuration = (seconds) => {
     if (!seconds || seconds <= 0) return '0:00';
@@ -25,11 +25,10 @@ const formatCallDuration = (seconds) => {
 const MenuRow = ({ icon, label, danger, onClick }) => (
     <button
         onClick={onClick}
-        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-            danger
-                ? 'text-[var(--c-danger)] hover:bg-[var(--c-danger-10)]'
-                : 'text-[var(--c-text)] hover:bg-[var(--c-hover)]'
-        }`}
+        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${danger
+            ? 'text-[var(--c-danger)] hover:bg-[var(--c-danger-10)]'
+            : 'text-[var(--c-text)] hover:bg-[var(--c-hover)]'
+            }`}
     >
         <span className="text-base shrink-0">{icon}</span>
         {label}
@@ -37,7 +36,7 @@ const MenuRow = ({ icon, label, danger, onClick }) => (
 );
 
 const AllchatMsg = ({ onStartCall }) => {
-    const { AllMessages, Allmsg, msg, setMsg, DeleteMsg, Del, setDel, ReadBy, ReactToMsg, EditMsg, editingMsg, setEditingMsg, setDelForEveryone, hasMore, LoadOlderMessages, loadingOlder } = useContext(messageContext);
+    const { AllMessages, Allmsg, msg, setMsg, setDel, ReadBy, ReactToMsg, EditMsg, editingMsg, setEditingMsg, setDelForEveryone, hasMore, LoadOlderMessages, loadingOlder } = useContext(messageContext);
     const { user, selectedchat, isAuthReady, MakeChat, Allchat } = useContext(chatContext); // Use isAuthReady
     const { setShowRecoveryModal, identityState } = useContext(userContext);
     const { socket } = useContext(SocketContext);
@@ -212,22 +211,20 @@ const AllchatMsg = ({ onStartCall }) => {
                                     <PollMessage message={m} />
                                 ) : (m.message.trim() === '' && m.media.trim() === '') ? (
                                     <div
-                                        className={`chat-bubble rounded-2xl ${
-                                            isSender ? 'bg-[var(--c-surface)] border border-[var(--c-line)] text-[var(--c-link)]' : 'bg-[var(--c-surface-80)] border border-[var(--c-line)] text-[var(--c-text-2)]'
-                                        } italic text-xs max-w-xs sm:max-w-md shadow-sm`}
+                                        className={`chat-bubble rounded-2xl ${isSender ? 'bg-[var(--c-surface)] border border-[var(--c-line)] text-[var(--c-link)]' : 'bg-[var(--c-surface-80)] border border-[var(--c-line)] text-[var(--c-text-2)]'
+                                            } italic text-xs max-w-xs sm:max-w-md shadow-sm`}
                                     >
                                         This message was deleted
                                     </div>
                                 ) : m.media ? (
                                     <div
-                                        className={`chat-bubble rounded-2xl ${
-                                            isSender ? 'bg-[var(--c-primary)] text-[var(--c-text)] shadow-md' : 'bg-[var(--c-surface)] text-[var(--c-text)] border border-[var(--c-line)] shadow-sm'
-                                        } p-2 max-w-xs sm:max-w-md`}
+                                        className={`chat-bubble rounded-2xl ${isSender ? 'bg-[var(--c-primary)] text-[var(--c-text)] shadow-md' : 'bg-[var(--c-surface)] text-[var(--c-text)] border border-[var(--c-line)] shadow-sm'
+                                            } p-2 max-w-xs sm:max-w-md`}
                                     >
                                         {(() => {
                                             const fileUrl = m.media.startsWith('http') || m.media.startsWith('data:')
                                                 ? m.media
-                                                : `http://localhost:4000${m.media}`;
+                                                : `${getApiBaseUrl()}${m.media}`;
                                             let fileExt = m.media.split('.').pop().toLowerCase();
                                             if (fileExt === 'enc') {
                                                 const parts = m.media.split('.');
@@ -255,17 +252,15 @@ const AllchatMsg = ({ onStartCall }) => {
                                                 const isMissed = callLog.status === 'missed' || callLog.status === 'declined';
 
                                                 return (
-                                                    <div className={`p-3.5 rounded-2xl border ${
-                                                        isSender
-                                                            ? 'bg-[var(--c-surface)] border-[var(--c-line)] text-[var(--c-text)]'
-                                                            : 'bg-[var(--c-surface-80)] border-[var(--c-line)] text-[var(--c-text)]'
-                                                    } min-w-[210px] sm:min-w-[250px] shadow-sm select-none`}>
+                                                    <div className={`p-3.5 rounded-2xl border ${isSender
+                                                        ? 'bg-[var(--c-surface)] border-[var(--c-line)] text-[var(--c-text)]'
+                                                        : 'bg-[var(--c-surface-80)] border-[var(--c-line)] text-[var(--c-text)]'
+                                                        } min-w-[210px] sm:min-w-[250px] shadow-sm select-none`}>
                                                         <div className="flex items-center gap-3">
-                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                                                                isMissed
-                                                                    ? 'bg-red-500/15 text-red-500 border border-red-500/30'
-                                                                    : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                                            }`}>
+                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isMissed
+                                                                ? 'bg-red-500/15 text-red-500 border border-red-500/30'
+                                                                : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                                                }`}>
                                                                 {isVideo ? (
                                                                     isMissed ? <IoVideocamOff className="text-lg" /> : <IoVideocam className="text-lg" />
                                                                 ) : (
@@ -308,9 +303,8 @@ const AllchatMsg = ({ onStartCall }) => {
                                             try {
                                                 const contact = JSON.parse(decryptedText.replace("[CONTACT_CARD]:::", ""));
                                                 return (
-                                                    <div className={`p-3.5 rounded-2xl border ${
-                                                        isSender ? 'bg-[var(--c-surface)] border-[var(--c-line)] text-[var(--c-text)]' : 'bg-[var(--c-surface-80)] border-[var(--c-line)] text-[var(--c-text)]'
-                                                    } w-60 sm:w-64 shadow-md`}>
+                                                    <div className={`p-3.5 rounded-2xl border ${isSender ? 'bg-[var(--c-surface)] border-[var(--c-line)] text-[var(--c-text)]' : 'bg-[var(--c-surface-80)] border-[var(--c-line)] text-[var(--c-text)]'
+                                                        } w-60 sm:w-64 shadow-md`}>
                                                         <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--c-link)] mb-2">
                                                             <IoPerson className="text-xs" /> Shared Contact
                                                         </div>
@@ -364,11 +358,10 @@ const AllchatMsg = ({ onStartCall }) => {
                                         if (decryptedText.startsWith("[Unable to decrypt") || decryptedText.startsWith("E2:")) {
                                             return (
                                                 <div
-                                                    className={`rounded-2xl px-3.5 py-2.5 text-xs border flex items-center gap-2.5 select-none ${
-                                                        isSender
-                                                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
-                                                            : 'bg-[var(--c-surface)] border-[var(--c-line)] text-[var(--c-text-3)]'
-                                                    } max-w-xs sm:max-w-md shadow-xs`}
+                                                    className={`rounded-2xl px-3.5 py-2.5 text-xs border flex items-center gap-2.5 select-none ${isSender
+                                                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
+                                                        : 'bg-[var(--c-surface)] border-[var(--c-line)] text-[var(--c-text-3)]'
+                                                        } max-w-xs sm:max-w-md shadow-xs`}
                                                 >
                                                     <FiLock className="text-base shrink-0 opacity-80" />
                                                     <div className="flex flex-col gap-0.5">
@@ -392,9 +385,8 @@ const AllchatMsg = ({ onStartCall }) => {
 
                                         return (
                                             <div
-                                                className={`chat-bubble rounded-2xl ${
-                                                    isSender ? 'bg-[var(--c-primary)] text-[var(--c-text)] shadow-md' : 'bg-[var(--c-surface)] text-[var(--c-text)] border border-[var(--c-line)] shadow-sm'
-                                                } px-3.5 py-2 text-xs sm:text-sm leading-relaxed max-w-xs sm:max-w-md`}
+                                                className={`chat-bubble rounded-2xl ${isSender ? 'bg-[var(--c-primary)] text-[var(--c-text)] shadow-md' : 'bg-[var(--c-surface)] text-[var(--c-text)] border border-[var(--c-line)] shadow-sm'
+                                                    } px-3.5 py-2 text-xs sm:text-sm leading-relaxed max-w-xs sm:max-w-md`}
                                             >
                                                 {decryptedText}
                                                 {m.isEdited && <span className="text-[11px] text-[var(--c-text-2)] italic ml-1">(edited)</span>}

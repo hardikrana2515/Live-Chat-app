@@ -328,7 +328,7 @@ const GroupCall = ({ socket, user, chat, callType = 'video', onEndCall, isInitia
             };
 
             // 7. Group call ended globally by server (initiator left or participants dropped to <= 1)
-            const handleServerGroupCallEnded = ({ chatId: endedChatId, duration: endDuration, reason }) => {
+            const handleServerGroupCallEnded = ({ chatId: endedChatId, reason }) => {
                 console.log("[GroupCall] Received groupCallEnded:", endedChatId, reason);
                 if (endedChatId?.toString() === chatId?.toString()) {
                     if (reason === "initiator_left") {
