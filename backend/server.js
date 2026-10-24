@@ -33,17 +33,30 @@ app.use((req, res, next) => {
   next();
 });
 
-const allowedOrigins = process.env.CLIENT_URL
-  ? [process.env.CLIENT_URL, "http://localhost:5173", "http://127.0.0.1:5173"]
-  : ["http://localhost:5173", "http://127.0.0.1:5173"];
+const configuredOrigins = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(',').map(url => url.trim().replace(/\/$/, ''))
+  : [];
+
+const allowedOrigins = [
+  ...configuredOrigins,
+  "http://localhost:5173",
+  "http://127.0.0.1:5173"
+];
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
-      callback(null, true);
-    } else {
-      callback(new Error('CORS not allowed'));
+    if (!origin || process.env.NODE_ENV !== 'production' || allowedOrigins.includes(origin)) {
+      return callback(null, true);
     }
+    try {
+      const url = new URL(origin);
+      if (url.hostname.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+    } catch {
+      // ignore parsing error
+    }
+    callback(new Error('CORS not allowed'));
   },
   credentials: true,
 };
