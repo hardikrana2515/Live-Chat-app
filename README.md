@@ -6,7 +6,8 @@
 
 Built with the **MERN Stack**, **Socket.IO**, **WebRTC**, **Cloudinary**, and **Tailwind CSS**.
 
-[![Frontend Deployment](https://img.shields.io/badge/Vercel-Deployed-black?style=for-the-badge&logo=vercel)](https://live-chat-app-alpha.vercel.app)
+[![Frontend Deployment](https://img.shields.io/badge/Vercel-Deployed-black?style=for-the-badge&logo=vercel)](https://live-chat-app-alpha.vercel.app/)
+[![Live App](https://img.shields.io/badge/Live%20App-live--chat--app--alpha.vercel.app-0070F3?style=for-the-badge&logo=vercel)](https://live-chat-app-alpha.vercel.app/)
 [![Backend Deployment](https://img.shields.io/badge/Render-Online-46E3B7?style=for-the-badge&logo=render)](https://talkyy-backend.onrender.com)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 [![MongoDB](https://img.shields.io/badge/Database-MongoDB%20Atlas-47A248?style=for-the-badge&logo=mongodb)](https://www.mongodb.com)
@@ -14,8 +15,11 @@ Built with the **MERN Stack**, **Socket.IO**, **WebRTC**, **Cloudinary**, and **
 [![WebRTC](https://img.shields.io/badge/Calling-WebRTC%20P2P-333333?style=for-the-badge&logo=webrtc)](https://webrtc.org)
 
 <p align="center">
-  <a href="https://live-chat-app-alpha.vercel.app"><strong>Explore Live Demo »</strong></a>
   <br />
+  <a href="https://live-chat-app-alpha.vercel.app/">
+    <img src="https://img.shields.io/badge/🚀%20OPEN%20LIVE%20APP-https%3A%2F%2Flive--chat--app--alpha.vercel.app%2F-blue?style=for-the-badge&logo=vercel&logoColor=white" alt="Open Live App" height="40" />
+  </a>
+  <br /><br />
   <a href="#-key-features">Key Features</a> •
   <a href="#-visual-tour">Visual Tour</a> •
   <a href="#-architecture">Architecture</a> •
@@ -35,6 +39,8 @@ Built with the **MERN Stack**, **Socket.IO**, **WebRTC**, **Cloudinary**, and **
 ---
 
 ## 🚀 Overview
+
+> 🌐 **Live Application URL:** **[https://live-chat-app-alpha.vercel.app/](https://live-chat-app-alpha.vercel.app/)**
 
 **Talkyy** is an end-to-end communication platform engineered from the ground up to bring the privacy, elegance, and responsiveness of modern consumer messaging apps to the browser without requiring any software installations.
 
