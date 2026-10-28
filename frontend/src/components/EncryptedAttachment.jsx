@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { decryptFile } from '../utils/EncryptionUtils';
-import AudioMessage from './AudioMessage'; // Reuse your audio player
+import AudioMessage from './AudioMessage';
 
 const EncryptedAttachment = ({ url, type, alt, chatId }) => {
     const [attachment, setAttachment] = useState({ url: null, mimeType: '' });
