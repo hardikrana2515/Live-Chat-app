@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+*/node_modules/
+.pnp
+.pnp.js
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.env
+
+# Production & Build outputs
+dist/
+dist-ssr/
+build/
+coverage/
+*/dist/
+*/build/
+*/coverage/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Uploads / Media
+backend/public/Image/*
+!backend/public/Image/.gitkeep
+backend/public/media/*
+!backend/public/media/.gitkeep
+uploads/
+*/uploads/
+
+# Editor & IDE files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
